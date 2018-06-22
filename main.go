@@ -29,16 +29,16 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "clair timeout %s\n", conf.ClairTimeout)
 	fmt.Fprintf(os.Stderr, "docker timeout: %s\n", conf.DockerConfig.Timeout)
-	
+	fmt.Fprintf(os.Stderr, "features: %t\n", conf.Features)
+	fmt.Fprintf(os.Stderr, "vulnerabilities: %t\n", conf.Vulnerabilities)
+
 	whitelist := &vulnerabilitiesWhitelist{}
-	if (conf.WhiteListFile != "") {
+	if conf.WhiteListFile != "" {
 		fmt.Fprintf(os.Stderr, "whitelist file: %s\n", conf.WhiteListFile)
 		whitelist, err = parseWhitelistFile(conf.WhiteListFile)
 		if err != nil {
 			fail("Could not parse whitelist file: %s", err)
 		}
-	} else {
-		fmt.Fprintf(os.Stderr, "no whitelist file\n")
 	}
 
 	image, err := docker.NewImage(&conf.DockerConfig)
@@ -65,59 +65,85 @@ func main() {
 		}
 	}
 
-	var vs []*clair.Vulnerability
-	for _, ver := range []int{1, 3} {
-		c := clair.NewClair(conf.ClairAddr, ver, conf.ClairTimeout)
-		vs, err = c.Analyse(image)
+	if conf.Vulnerabilities {
+		var vs []*clair.Vulnerability
+		for _, ver := range []int{1, 3} {
+			c := clair.NewClair(conf.ClairAddr, ver, conf.ClairTimeout)
+			vs, err = c.Analyse(image)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to analyze using API v%d: %s\n", ver, err)
+			} else {
+				if !conf.JSONOutput {
+					fmt.Printf("Got results from Clair API v%d\n", ver)
+				}
+				break
+			}
+		}
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to analyze using API v%d: %s\n", ver, err)
+			fail("Failed to analyze, exiting")
+		}
+
+		//apply whitelist
+		numVulnerabilites := len(vs)
+		vs = filterWhitelist(whitelist, vs)
+		numVulnerabilitiesAfterWhitelist := len(vs)
+
+		groupBySeverity(vs)
+		vsNumber := 0
+
+		if conf.JSONOutput {
+			iteratePriorities(conf.ClairOutput, func(sev string) {
+				vsNumber += len(store[sev])
+				output.Vulnerabilities[sev] = store[sev]
+			})
+			enc := json.NewEncoder(os.Stdout)
+			enc.Encode(output)
 		} else {
-			if !conf.JSONOutput {
-				fmt.Printf("Got results from Clair API v%d\n", ver)
+			if numVulnerabilitiesAfterWhitelist < numVulnerabilites {
+				//display how many vulnerabilities were whitelisted
+				fmt.Printf("Whitelisted %d vulnerabilities\n", numVulnerabilites-numVulnerabilitiesAfterWhitelist)
 			}
-			break
+			fmt.Printf("Found %d vulnerabilities\n", len(vs))
+			iteratePriorities(priorities[0], func(sev string) { fmt.Printf("%s: %d\n", sev, len(store[sev])) })
+			fmt.Printf("\n")
+
+			iteratePriorities(conf.ClairOutput, func(sev string) {
+				vsNumber += len(store[sev])
+				for _, v := range store[sev] {
+					fmt.Printf("%s: [%s] \nFound in: %s [%s]\nFixed By: %s\n%s\n%s\n", v.Name, v.Severity, v.FeatureName, v.FeatureVersion, v.FixedBy, v.Description, v.Link)
+					fmt.Println("-----------------------------------------")
+				}
+			})
+		}
+		if vsNumber > conf.Threshold {
+			os.Exit(1)
 		}
 	}
-	if err != nil {
-		fail("Failed to analyze, exiting")
-	}
 
-	//apply whitelist
-	numVulnerabilites := len(vs)
-	vs = filterWhitelist(whitelist,vs)
-	numVulnerabilitiesAfterWhitelist := len(vs)
-	
-	groupBySeverity(vs)
-	vsNumber := 0
-
-	if conf.JSONOutput {
-		iteratePriorities(conf.ClairOutput, func(sev string) {
-			vsNumber += len(store[sev])
-			output.Vulnerabilities[sev] = store[sev]
-		})
-		enc := json.NewEncoder(os.Stdout)
-		enc.Encode(output)
-	} else {
-		if numVulnerabilitiesAfterWhitelist < numVulnerabilites {
-			//display how many vulnerabilities were whitelisted
-			fmt.Printf("Whitelisted %d vulnerabilities\n", numVulnerabilites - numVulnerabilitiesAfterWhitelist)
-		}
-		fmt.Printf("Found %d vulnerabilities\n", len(vs))
-		iteratePriorities(priorities[0], func(sev string) { fmt.Printf("%s: %d\n", sev, len(store[sev])) })
-		fmt.Printf("\n")
-		
-		iteratePriorities(conf.ClairOutput, func(sev string) {
-			vsNumber += len(store[sev])
-			for _, v := range store[sev] {
-				fmt.Printf("%s: [%s] \nFound in: %s [%s]\nFixed By: %s\n%s\n%s\n", v.Name, v.Severity, v.FeatureName, v.FeatureVersion, v.FixedBy, v.Description, v.Link)
-				fmt.Println("-----------------------------------------")
+	if conf.Features {
+		var fs []*clair.Feature
+		//obtain the packages using Annotate
+		for _, ver := range []int{1, 3} {
+			c := clair.NewClair(conf.ClairAddr, ver, conf.ClairTimeout)
+			fs, err = c.Annotate(image)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to analyze using API v%d: %s\n", ver, err)
+			} else {
+				if !conf.JSONOutput {
+					fmt.Printf("Got results from Clair API v%d\n", ver)
+				}
+				break
 			}
-		})
-		
-	}
+		}
+		if err != nil {
+			fail("Failed to analyze, exiting")
+		}
 
-	if vsNumber > conf.Threshold {
-		os.Exit(1)
+		fmt.Printf("Number of the features %d\n", len(fs))
+
+		for _, f := range fs {
+			fmt.Printf("%s\n", f.Name)
+		}
 	}
 }
 
@@ -132,6 +158,7 @@ func iteratePriorities(output string, f func(sev string)) {
 			}
 		}
 
+		//print the vulnerabilites
 		if len(store[sev]) != 0 {
 			f(sev)
 		}
@@ -158,9 +185,9 @@ func vulnsBy(sev string, store map[string][]*clair.Vulnerability) []*clair.Vulne
 func filterWhitelist(whitelist *vulnerabilitiesWhitelist, vs []*clair.Vulnerability) []*clair.Vulnerability {
 	generalWhitelist := whitelist.General
 	imageWhitelist := whitelist.Images
-	
+
 	filteredVs := make([]*clair.Vulnerability, 0, len(vs))
-	
+
 	for _, v := range vs {
 		if _, exists := generalWhitelist[v.Name]; !exists {
 			//vulnerability is not in the general whitelist, so get the image name by removing ":version" from the value returned via the Clair API
@@ -171,6 +198,6 @@ func filterWhitelist(whitelist *vulnerabilitiesWhitelist, vs []*clair.Vulnerabil
 			}
 		}
 	}
-	
+
 	return filteredVs
 }

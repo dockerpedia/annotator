@@ -18,6 +18,7 @@ type Clair struct {
 }
 
 type API interface {
+	Annotate(image *docker.Image) ([]*Feature, error)
 	Analyze(image *docker.Image) ([]*Vulnerability, error)
 	Push(image *docker.Image) error
 }
@@ -27,7 +28,7 @@ type layer struct {
 	Path       string
 	ParentName string
 	Format     string
-	Features   []feature
+	Features   []Feature
 	Headers    headers
 }
 
@@ -35,9 +36,9 @@ type headers struct {
 	Authorization string
 }
 
-type feature struct {
+type Feature struct {
 	Name            string          `json:"Name,omitempty"`
-	NamespaceName   string          `json:"NamespaceName,omitempty"`
+	NamespaceName   string          `Fson:"NamespaceName,omitempty"`
 	Version         string          `json:"Version,omitempty"`
 	Vulnerabilities []Vulnerability `json:"Vulnerabilities"`
 	AddedBy         string          `json:"AddedBy,omitempty"`
@@ -52,7 +53,7 @@ type Vulnerability struct {
 	Severity       string                 `json:"Severity,omitempty"`
 	Metadata       map[string]interface{} `json:"Metadata,omitempty"`
 	FixedBy        string                 `json:"FixedBy,omitempty"`
-	FixedIn        []feature              `json:"FixedIn,omitempty"`
+	FixedIn        []Feature              `json:"FixedIn,omitempty"`
 	FeatureName    string                 `json:"featureName",omitempty`
 	FeatureVersion string                 `json:"featureName",omitempty`
 }
@@ -124,6 +125,27 @@ func (c *Clair) Analyse(image *docker.Image) ([]*Vulnerability, error) {
 	if err != nil {
 		return nil, fmt.Errorf("analyse image %s/%s:%s failed: %s\n", image.Registry, image.Name, image.Tag, err.Error())
 	}
+	return vs, nil
+}
 
+// Analyse sent each layer from Docker image to Clair and returns
+// a list of found vulnerabilities
+func (c *Clair) Annotate(image *docker.Image) ([]*Feature, error) {
+	// Filter the empty layers in image
+	image.FsLayers = filterEmptyLayers(image.FsLayers)
+	layerLength := len(image.FsLayers)
+	if layerLength == 0 {
+		fmt.Fprintf(os.Stderr, "no need to analyse image %s/%s:%s as there is no non-emtpy layer\n",
+			image.Registry, image.Name, image.Tag)
+		return nil, nil
+	}
+
+	if err := c.api.Push(image); err != nil {
+		return nil, fmt.Errorf("push image %s/%s:%s to Clair failed: %s\n", image.Registry, image.Name, image.Tag, err.Error())
+	}
+	vs, err := c.api.Annotate(image)
+	if err != nil {
+		return nil, fmt.Errorf("analyse image %s/%s:%s failed: %s\n", image.Registry, image.Name, image.Tag, err.Error())
+	}
 	return vs, nil
 }

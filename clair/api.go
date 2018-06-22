@@ -145,6 +145,36 @@ func (a *apiV1) Analyze(image *docker.Image) ([]*Vulnerability, error) {
 	return vs, nil
 }
 
+func (a *apiV1) Annotate(image *docker.Image) ([]*Feature, error) {
+	url := fmt.Sprintf("%s/v1/layers/%s?vulnerabilities", a.url, image.AnalyzedLayerName())
+	request, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("can't create an analyze request: %s", err)
+	}
+	utils.DumpRequest(request)
+	response, err := a.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	utils.DumpResponse(response)
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(response.Body)
+		return nil, fmt.Errorf("analyze error %d: %s", response.StatusCode, string(body))
+	}
+	var envelope layerEnvelope
+	if err = json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	var fs []*Feature
+	for _, f := range envelope.Layer.Features {
+
+		feature := f
+		fs = append(fs, &feature)
+	}
+	return fs, nil
+}
+
 func (a *apiV3) Push(image *docker.Image) error {
 	req := &clairpb.PostAncestryRequest{
 		Format:       "Docker",
@@ -195,6 +225,29 @@ func (a *apiV3) Analyze(image *docker.Image) ([]*Vulnerability, error) {
 	return vs, nil
 }
 
+func (a *apiV3) Annotate(image *docker.Image) ([]*Feature, error) {
+	req := &clairpb.GetAncestryRequest{
+		AncestryName: image.Name,
+		WithFeatures: true,
+	}
+
+	resp, err := a.client.GetAncestry(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+	var fs []*Feature
+	for _, f := range resp.Ancestry.Features {
+		cf := convertFeature(f)
+		cf.Name = f.Name
+		//the for loop uses the same variable for "cv", reloading with new values
+		//since we are appending a pointer to the variable to the slice, we need to create a copy of the struct
+		//otherwise the slice winds up with multiple pointers to the same struct
+		feature := cf
+		fs = append(fs, feature)
+	}
+	return fs, nil
+}
+
 func convertVulnerability(cv *clairpb.Vulnerability) *Vulnerability {
 	return &Vulnerability{
 		Name:          cv.Name,
@@ -203,5 +256,14 @@ func convertVulnerability(cv *clairpb.Vulnerability) *Vulnerability {
 		Severity:      cv.Severity,
 		Link:          cv.Link,
 		FixedBy:       cv.FixedBy,
+	}
+}
+
+func convertFeature(cf *clairpb.Feature) *Feature {
+	return &Feature{
+		Name:          cf.Name,
+		NamespaceName: cf.NamespaceName,
+		Version:       cf.Version,
+		//AddedBy:       cf.AddedBy,
 	}
 }
