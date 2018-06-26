@@ -13,3 +13,4 @@ annotator
 *.out
 *.swp
 .DS_Store
+credentials.sh
