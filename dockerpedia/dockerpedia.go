@@ -11,7 +11,7 @@ import (
 	manifestV1 "github.com/docker/distribution/manifest/schema1"
 	"github.com/dockerpedia/annotator/clair"
 	"github.com/dockerpedia/annotator/klar"
-	"github.com/dockerpedia/docker-registry-client/registry"
+	registryclient "github.com/dockerpedia/docker-registry-client/registry"
 	"github.com/gin-gonic/gin"
 )
 
@@ -40,18 +40,18 @@ var username string = "" // anonymous
 var password string = "" // anonymous
 
 func NewRepository(c *gin.Context) {
-	hub := registry.New(dockerurl, username, password)
+	clientRegistry := registryclient.New(dockerurl, username, password)
 	var json Tag
 	if err := c.ShouldBindJSON(&json); err == nil {
 		//Get tag size
-		size, err := hub.TagSize(json.Image, json.Tag)
+		size, err := clientRegistry.TagSize(json.Image, json.Tag)
 		if err != nil {
 			log.Printf(json.Image, "Unable to the get size of the image %s:%s", json.Tag)
 		}
 		json.Size = size
 
 		//Get manifest
-		manifest, errManifest := hub.Manifest(json.Image, json.Tag)
+		manifest, errManifest := clientRegistry.Manifest(json.Image, json.Tag)
 		if errManifest != nil {
 			log.Printf("Unable to the get manifest of the image %s:%s", json.Image, json.Tag)
 		}
