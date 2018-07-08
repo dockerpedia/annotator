@@ -7,28 +7,24 @@ import (
 
 	"github.com/dockerpedia/annotator/clair"
 	"github.com/dockerpedia/annotator/docker"
+	"log"
 )
 
 var store = make(map[string][]*clair.Vulnerability)
 
-func Run(imageName string) []*clair.Feature {
+func Run(imageName string) ([]*clair.Feature, error) {
 	clairAddr := "http://localhost:6060"
 	clairTimeout := time.Duration(1) * time.Minute
-
-	fail := func(format string, a ...interface{}) {
-		fmt.Fprintf(os.Stderr, fmt.Sprintf("%s\n", format), a...)
-		os.Exit(1)
-	}
 
 	conf, err := newConfig(imageName, clairAddr)
 	image, err := docker.NewImage(&conf.DockerConfig)
 	if err != nil {
-		fail("Can't parse qname: %s", err)
+		log.Printf("Can't parse qname: %s", err)
 	}
 
 	err = image.Pull()
 	if err != nil {
-		fail("Can't pull image: %s", err)
+		log.Printf("Can't pull image: %s", err)
 	}
 
 	var fs []*clair.Feature
@@ -47,10 +43,10 @@ func Run(imageName string) []*clair.Feature {
 		}
 	}
 	if err != nil {
-		fail("Failed to analyze, exiting")
+		log.Printf("Failed to analyze, exiting")
 	}
 
 	fmt.Printf("Number of the features %d\n", len(fs))
 
-	return fs
+	return fs, nil
 }
