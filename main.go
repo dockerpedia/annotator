@@ -15,5 +15,5 @@ func main() {
 		v1.POST("/repositories/new", dockerpedia.NewRepository)
 	}
 
-	router.Run(":8080")
+	router.Run(":8081")
 }
