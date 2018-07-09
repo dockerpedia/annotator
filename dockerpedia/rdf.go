@@ -29,7 +29,7 @@ func sendToFuseki(buffer bytes.Buffer){
 		log.Println(err)
 	}
 
-	f, err := ioutil.ReadAll(resp.Body)
+	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
 	}
@@ -37,30 +37,24 @@ func sendToFuseki(buffer bytes.Buffer){
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(string(f))
 }
 
-func ConvertTriples(tag Tag) {
+func ConvertTriples(image SoftwareImage) {
 	var bufferTag, bufferFeature bytes.Buffer
 
-	resourceURI := fmt.Sprintf("%s%s", resource, tag.Tag)
+	resourceURI := fmt.Sprintf("%s%s", resource, image.Image)
 
-	trisStruct := tstore.TriplesFromStruct(resourceURI, &tag)
+	imageStruct := tstore.TriplesFromStruct(resourceURI, &image)
 	enc := tstore.NewLenientNTEncoder(&bufferTag)
-	enc.Encode(trisStruct...)
+	enc.Encode(imageStruct...)
 	sendToFuseki(bufferTag)
 
-	s := bufferTag.String()
-	fmt.Println(s)
 
-
-	for _, feature := range tag.Features {
-		trisStruct2 := tstore.TriplesFromStruct(feature.Name, feature)
+	for _, feature := range image.Features {
+		featureStruct := tstore.TriplesFromStruct(feature.Name, feature)
 		enc := tstore.NewLenientNTEncoder(&bufferFeature)
-		enc.Encode(trisStruct2...)
+		enc.Encode(featureStruct...)
 		sendToFuseki(bufferFeature)
-		s := bufferFeature.String()
-		fmt.Println(s)
 	}
 
 }

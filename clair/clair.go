@@ -42,7 +42,7 @@ type Feature struct {
 	NamespaceName   string          `json:"NamespaceName,omitempty" 
 									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/hasNamespace"`
 	Version         string          `json:"Version,omitempty"
-									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/version"`
+									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/hasVersion"`
 	Vulnerabilities []Vulnerability `json:"Vulnerabilities"
 									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/hasVulnerability"`
 	AddedBy         string          `json:"AddedBy,omitempty"
