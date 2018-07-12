@@ -24,19 +24,27 @@ type v1Compatibility struct {
 	ThrowAway bool   `json:"throwaway,omitempty"`
 }
 
+
+//http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
 type SoftwareImage struct {
-	Image      string                     `form:"image" json:"image" binding:"required" predicate:"image"`
-	Version    string                     `form:"tag" json:"tag" binding:"required" predicate:"rdfs:name"`
-	Size       int64                      `json:"size" predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/size"`
-	Features   []*clair.Feature           `json:"features" predicate:"hasPackage"`
-	ManifestV1 *manifestV1.SignedManifest `json:"manifest" predicate:"manifest"`
+	Image      string                     `form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
+	Version    string                     `form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
+	Size       int64                      `json:"size" predicate:"vocab:size"`
+	Features   []*clair.Feature           `json:"features"`
+	ManifestV1 *manifestV1.SignedManifest `json:"manifest"`
 	History    []v1Compatibility		  `json:"history"`
 }
 
-
+//http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
 type Dockerfile struct {
 	Steps     []string `json:steps`
 }
+
+//http://dockerpedia.inf.utfsm.cl/resource/PackageVersion/{id}
+type FeatureVersion struct {
+	Version string  `json:"Version,omitempty" predicate:"rdfs:label"`
+}
+
 
 var dockerurl string = "https://registry-1.docker.io/"
 var username string = "" // anonymous
@@ -63,7 +71,7 @@ func NewRepository(c *gin.Context) {
 		//Get features
 		newImage.Features, err = klar.Run(newImage.Image)
 
-		ConvertTriples(newImage)
+		AnnotateFuseki(newImage)
 
 		if errManifest != nil {
 			log.Printf("Unable to the get features of the image %s:%s", newImage.Image, newImage.Version)

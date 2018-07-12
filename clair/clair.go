@@ -48,7 +48,6 @@ type Feature struct {
 	AddedBy         string          `json:"AddedBy,omitempty"
 									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/AddedBy"`
 }
-
 // Vulnerability represents vulnerability entity returned by Clair
 type Vulnerability struct {
 	Name           string                 `json:"Name,omitempty" predicate:"name"`
