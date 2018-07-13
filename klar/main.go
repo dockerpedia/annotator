@@ -12,7 +12,8 @@ import (
 
 var store = make(map[string][]*clair.Vulnerability)
 
-func Run(imageName string) ([]*clair.Feature, error) {
+
+func DockerAnalyze(imageName string) ([]*clair.Feature, *docker.Image,  error) {
 	clairAddr := "http://localhost:6060"
 	clairTimeout := time.Duration(1) * time.Minute
 
@@ -48,5 +49,5 @@ func Run(imageName string) ([]*clair.Feature, error) {
 
 	fmt.Printf("Number of the features %d\n", len(fs))
 
-	return fs, nil
+	return fs, image, nil
 }
