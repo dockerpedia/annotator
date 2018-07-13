@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"strings"
 	"github.com/dockerpedia/annotator/clair"
+	"github.com/dockerpedia/annotator/docker"
+
 )
 
 type responseFuseki struct {
@@ -63,6 +65,18 @@ func buildContext(prefixes []string, base string) (*tstore.Context, error) {
 	return context, nil
 }
 
+func tripleLayers(layers []docker.FsLayer, imageName string, triples *[]tstore.Triple){
+	for _, layer := range layers{
+		layerURI := fmt.Sprint("ImageLayer:%s", layer.BlobSum)
+		imageURI := fmt.Sprint("SoftwareImage:%s", imageName)
+
+		*triples = append(*triples,
+			tstore.SubjPred(layerURI, "rdfs:type").Resource("resource/ImageLayer"),
+			tstore.SubjPred(layerURI, "vocab:isLayerOf").Resource(imageURI),
+			tstore.SubjPred(imageURI, "vocab:composedBy").Resource(layerURI),
+		)
+	}
+}
 func appendNameSpace(namespace string, triples *[]tstore.Triple){
 	namespaceURI := fmt.Sprintf("OperatingSystem:%s", namespace)
 	triple := tstore.SubjPred(namespaceURI, "rdf:type").Resource("resource/OperatingSystem")
@@ -126,28 +140,36 @@ func appendFeatureVersion(feature clair.Feature, triples *[]tstore.Triple, conte
 	sendToFuseki(buffer)
 }
 
-func AnnotateFuseki(image SoftwareImage) {
+func preBuildContext() (*tstore.Context, error){
 	prefixes := []string{
-		"SoftwareImage:resource/SoftwareImage/",
-		"SoftwarePackage:resource/SoftwarePackage/",
-		"PackageVersion:resource/PackageVersion/",
-		"OperatingSystem:resource/OperatingSystem/",
-		"ImageLayer:resource/ImageLayer/",
-		"vocab:vocab#",
+	"SoftwareImage:resource/SoftwareImage/",
+	"SoftwarePackage:resource/SoftwarePackage/",
+	"PackageVersion:resource/PackageVersion/",
+	"OperatingSystem:resource/OperatingSystem/",
+	"ImageLayer:resource/ImageLayer/",
+	"vocab:vocab#",
 	}
 	context, err := buildContext(prefixes, "http://dockerpedia.inf.utfsm.cl/" )
 	if err != nil {
-		log.Printf("Error")
+	log.Printf("Error")
 	}
+
+	return context, err
+
+}
+func AnnotateFuseki(image SoftwareImage) {
 
 	var buffer bytes.Buffer
 	var triples []tstore.Triple
-
+	context, err := preBuildContext()
+	if err != nil {
+		log.Println("Failed build the context")
+	}
 	tripleSoftwareImage(image, &triples, context)
+	tripleLayers(image.FsLayers, &triples)
 	for _, feature := range image.Features {
 		//namespace
 		appendNameSpace(feature.NamespaceName, &triples)
-		fmt.Println(len(triples))
 
 		//features
 		appendFeature(*feature, &triples, context)
@@ -156,7 +178,7 @@ func AnnotateFuseki(image SoftwareImage) {
 		appendFeatureVersion(*feature, &triples, context)
 
 	}
-	//encond all triples
+	//encode all triples
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
 	err = enc.Encode(triples...)
 	if err != nil {
