@@ -38,24 +38,24 @@ type headers struct {
 
 type Feature struct {
 	Name            string          `json:"Name,omitempty" predicate:"rdfs:label"`
+	Vulnerabilities []Vulnerability `json:"Vulnerabilities" predicate:"vocab:hasVulnerability"`
 	NamespaceName   string          `json:"NamespaceName,omitempty"`
 	Version         string          `json:"Version,omitempty"`
-	Vulnerabilities []Vulnerability `json:"Vulnerabilities" predicate:"vocab:hasVulnerability"`
 	AddedBy         string          `json:"AddedBy,omitempty"`
 }
 
 // Vulnerability represents vulnerability entity returned by Clair
 type Vulnerability struct {
-	Name           string                 `json:"Name,omitempty" predicate:"name"`
-	NamespaceName  string                 `json:"NamespaceName,omitempty" predicate:"namespace"`
-	Description    string                 `json:"Description,omitempty" predicate:"description"`
-	Link           string                 `json:"Link,omitempty" predicate:"link"`
-	Severity       string                 `json:"Severity,omitempty" predicate:"severity"`
-	Metadata       map[string]interface{} `json:"Metadata,omitempty" predicate:"metadata"`
-	FixedBy        string                 `json:"FixedBy,omitempty" predicate:"fixedby"`
-	FixedIn        []Feature              `json:"FixedIn,omitempty" predicate:"fixedin"`
-	FeatureName    string                 `json:"featureName",omitempty predicate:"featurename"`
-	FeatureVersion string                 `json:"featureName",omitempty predicate:"featureversion"`
+	Name           string                 `json:"Name,omitempty" predicate:"rdfs:label"`
+	Description    string                 `json:"Description,omitempty" predicate:"vocab:description"`
+	Link           string                 `json:"Link,omitempty" predicate:"vocab:link"`
+	Severity       string                 `json:"Severity,omitempty" predicate:"vocab:severity"`
+	Metadata       map[string]interface{} `json:"Metadata,omitempty" predicate:"vocab:metadata"`
+	NamespaceName  string                 `json:"NamespaceName,omitempty"`
+	FixedBy        string                 `json:"FixedBy,omitempty"`
+	FixedIn        []Feature              `json:"FixedIn,omitempty"`
+	FeatureName    string                 `json:"featureName",omitempty"`
+	FeatureVersion string                 `json:"featureName",omitempty"`
 }
 
 type layerError struct {
