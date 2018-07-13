@@ -12,6 +12,7 @@ import (
 	"github.com/dockerpedia/annotator/clair"
 	"github.com/dockerpedia/annotator/klar"
 	"github.com/gin-gonic/gin"
+	"github.com/dockerpedia/annotator/docker"
 )
 
 type v1Compatibility struct {
@@ -27,12 +28,13 @@ type v1Compatibility struct {
 
 //http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
 type SoftwareImage struct {
-	Image      string                     `form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
+	Name      string                     `form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
 	Version    string                     `form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
 	Size       int64                      `json:"size" predicate:"vocab:size"`
 	Features   []*clair.Feature           `json:"features"`
 	ManifestV1 *manifestV1.SignedManifest `json:"manifest"`
 	History    []v1Compatibility		  `json:"history"`
+	FsLayers   []docker.FsLayer
 }
 
 //http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
@@ -45,6 +47,16 @@ type FeatureVersion struct {
 	Version string  `json:"Version,omitempty" predicate:"rdfs:label"`
 }
 
+type Namespace struct {
+	OperatingSystem string `json:"NamespaceName,omitempty" predicate:"vocab:operatingSystem"`
+	Version string `json:"Version,omitempty" predicate:"vocab:operatingSystemVersion"`
+}
+
+
+type Layer struct {
+	Name       string  `predicate:"rdfs:label"`
+	ParentName string
+}
 
 var dockerurl string = "https://registry-1.docker.io/"
 var username string = "" // anonymous
@@ -55,26 +67,28 @@ func NewRepository(c *gin.Context) {
 	var newImage SoftwareImage
 	if err := c.ShouldBindJSON(&newImage); err == nil {
 		//Get tag size
-		size, err := clientRegistry.TagSize(newImage.Image, newImage.Version)
+		var dockerImage *docker.Image
+
+		size, err := clientRegistry.TagSize(newImage.Name, newImage.Version)
 		if err != nil {
-			log.Printf(newImage.Image, "Unable to the get size of the image %s:%s", newImage.Version)
+			log.Printf(newImage.Name, "Unable to the get size of the image %s:%s", newImage.Version)
 		}
 		newImage.Size = size
 
 		//Get manifest
-		manifest, errManifest := clientRegistry.Manifest(newImage.Image, newImage.Version)
+		manifest, errManifest := clientRegistry.Manifest(newImage.Name, newImage.Version)
 		if errManifest != nil {
-			log.Printf("Unable to the get manifest of the image %s:%s", newImage.Image, newImage.Version)
+			log.Printf("Unable to the get manifest of the image %s:%s", newImage.Name, newImage.Version)
 		}
 		newImage.ManifestV1 = manifest
 
 		//Get features
-		newImage.Features, err = klar.Run(newImage.Image)
-
+		newImage.Features, dockerImage, err = klar.DockerAnalyze(newImage.Name)
+		newImage.FsLayers = dockerImage.FsLayers
 		AnnotateFuseki(newImage)
 
 		if errManifest != nil {
-			log.Printf("Unable to the get features of the image %s:%s", newImage.Image, newImage.Version)
+			log.Printf("Unable to the get features of the image %s:%s", newImage.Name, newImage.Version)
 		}
 
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)

@@ -8,7 +8,7 @@ import (
 	"log"
 	"io/ioutil"
 	"strings"
-	"encoding/json"
+	"github.com/dockerpedia/annotator/clair"
 )
 
 type responseFuseki struct {
@@ -16,6 +16,7 @@ type responseFuseki struct {
 	tripleCount int	 `json:"tripleCount,omitempty"`
 	quadCount int	 `json:"quadCount,omitempty"`
 }
+
 const (
 	siteHost     string = "http://10.6.91.175:3030"
 	resource	 string = "https://dockerpedia.inf.utfsm.cl/resource/"
@@ -25,7 +26,6 @@ const (
 )
 
 func sendToFuseki(buffer bytes.Buffer){
-	var r responseFuseki
 	client := &http.Client{}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/test3/data", siteHost), &buffer)
@@ -40,8 +40,7 @@ func sendToFuseki(buffer bytes.Buffer){
 	}
 
 
-	b, err := ioutil.ReadAll(resp.Body)
-	fmt.Println(resp.StatusCode)
+	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
 	}
@@ -49,15 +48,7 @@ func sendToFuseki(buffer bytes.Buffer){
 	if err != nil {
 		log.Fatal(err)
 	}
-
-
-	json.Unmarshal(b, &r)
-	fmt.Println(r)
 }
-
-
-
-
 
 func buildContext(prefixes []string, base string) (*tstore.Context, error) {
 	context := tstore.RDFContext
@@ -72,44 +63,104 @@ func buildContext(prefixes []string, base string) (*tstore.Context, error) {
 	return context, nil
 }
 
-
-
-
-
-func AnnotateFuseki(image SoftwareImage) {
-	prefixes := []string{
-		"SoftwareImage:resource/SoftwareImage/",
-		"PackageVersion:resource/PackageVersion/",
-		"vocab:vocab#",
+func appendNameSpace(namespace string, triples *[]tstore.Triple){
+	namespaceURI := fmt.Sprintf("OperatingSystem:%s", namespace)
+	triple := tstore.SubjPred(namespaceURI, "rdf:type").Resource("resource/OperatingSystem")
+	featureSplit := strings.Split(namespace, ":")
+	if len(featureSplit) == 2 {
+		namespace := Namespace{OperatingSystem:featureSplit[0], Version:featureSplit[1]}
+		namespaceURI = fmt.Sprintf("OperatingSystem:%s-%s", namespace.OperatingSystem, namespace.Version)
+	} else {
+		namespaceURI = fmt.Sprintf("OperatingSystem:unkwown")
 	}
-	context, err := buildContext(prefixes, "http://dockerpedia.inf.utfsm.cl" )
-	if err != nil {
-		log.Printf("Error")
-	}
+	*triples = append(*triples, triple)
+}
 
-	var buffer, bufferFeature bytes.Buffer
 
-	resourceURI := fmt.Sprintf("SoftwareImage:%s", image.Image)
+func tripleSoftwareImage(image SoftwareImage, triples *[]tstore.Triple, context *tstore.Context){
+	var buffer bytes.Buffer
+	resourceURI := fmt.Sprintf("SoftwareImage:%s", image.Name)
+	*triples = append(*triples,
+		tstore.SubjPred(resourceURI, "rdf:type").Resource("resource/SoftwareImage"),
+	)
 	imageStruct := tstore.TriplesFromStruct(resourceURI, &image)
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
 	enc.Encode(imageStruct...)
 	sendToFuseki(buffer)
+}
 
-	for _, feature := range image.Features {
-		featureURI := fmt.Sprintf("PackageVersion:%s",  feature.Name)
-		featureStruct := tstore.TriplesFromStruct(featureURI, feature)
-		enc2 := tstore.NewLenientNTEncoder(&bufferFeature)
-		enc2.Encode(featureStruct...)
-		sendToFuseki(bufferFeature)
+func appendFeature(feature clair.Feature, triples *[]tstore.Triple, context *tstore.Context){
+	var buffer bytes.Buffer
+	featureURI := fmt.Sprintf("SoftwarePackage:%s", feature.Name)
+	*triples = append(*triples,
+		tstore.SubjPred(featureURI, "rdf:type").Resource("resource/SoftwarePackage"),
+	)
+	featureStruct := tstore.TriplesFromStruct(featureURI, feature)
+	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
+	enc.Encode(featureStruct...)
+	sendToFuseki(buffer)
+}
 
+func appendFeatureVersion(feature clair.Feature, triples *[]tstore.Triple, context *tstore.Context){
+	var buffer bytes.Buffer
+	fv := FeatureVersion{feature.Version}
 
-		fv := FeatureVersion{feature.Version}
-		//featureVersionURI := fmt.Sprintf("%s%s%s", resource, packageVersion, fv.Version)
-		featureVersionStruct := tstore.TriplesFromStruct(fv.Version, fv)
-		encVersion := tstore.NewLenientNTEncoderWithContext(&buffer, context)
-		encVersion.Encode(featureVersionStruct...)
-		sendToFuseki(buffer)
+	//rdf:type
+	featureVersionURI := fmt.Sprintf("PackageVersion:%s-%s", feature.Name, fv.Version)
+	*triples = append(*triples,
+		tstore.SubjPred(featureVersionURI, "rdf:type").Resource("resource/PackageVersion"),
+	)
 
+	//relation with layer
+	layerURI := fmt.Sprint("ImageLayer:%s", feature.AddedBy)
+	*triples = append(*triples,
+		tstore.SubjPred(featureVersionURI, "vocab:modifyLayer").Resource(layerURI),
+		tstore.SubjPred(layerURI, "vocab:ismodifiedBy").Resource(featureVersionURI),
+	)
+
+	//from struct
+	fvURI := fmt.Sprintf("PackageVersion:%s-%s",  feature.Name, fv.Version)
+	featureVersionStruct := tstore.TriplesFromStruct(fvURI, fv)
+	encVersion := tstore.NewLenientNTEncoderWithContext(&buffer, context)
+	encVersion.Encode(featureVersionStruct...)
+	sendToFuseki(buffer)
+}
+
+func AnnotateFuseki(image SoftwareImage) {
+	prefixes := []string{
+		"SoftwareImage:resource/SoftwareImage/",
+		"SoftwarePackage:resource/SoftwarePackage/",
+		"PackageVersion:resource/PackageVersion/",
+		"OperatingSystem:resource/OperatingSystem/",
+		"ImageLayer:resource/ImageLayer/",
+		"vocab:vocab#",
+	}
+	context, err := buildContext(prefixes, "http://dockerpedia.inf.utfsm.cl/" )
+	if err != nil {
+		log.Printf("Error")
 	}
 
+	var buffer bytes.Buffer
+	var triples []tstore.Triple
+
+	tripleSoftwareImage(image, &triples, context)
+	for _, feature := range image.Features {
+		//namespace
+		appendNameSpace(feature.NamespaceName, &triples)
+		fmt.Println(len(triples))
+
+		//features
+		appendFeature(*feature, &triples, context)
+
+		//featureVersion
+		appendFeatureVersion(*feature, &triples, context)
+
+	}
+	//encond all triples
+	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
+	err = enc.Encode(triples...)
+	if err != nil {
+		fmt.Printf("error")
+	}
+	sendToFuseki(buffer)
 }
