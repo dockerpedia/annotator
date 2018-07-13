@@ -37,17 +37,13 @@ type headers struct {
 }
 
 type Feature struct {
-	Name            string          `json:"Name,omitempty" 
-									predicate:"rdfs:label"`
-	NamespaceName   string          `json:"NamespaceName,omitempty" 
-									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/hasNamespace"`
-	Version         string          `json:"Version,omitempty"
-									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/hasVersion"`
-	Vulnerabilities []Vulnerability `json:"Vulnerabilities"
-									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/hasVulnerability"`
-	AddedBy         string          `json:"AddedBy,omitempty"
-									predicate:"https://dockerpedia.inf.utfsm.cl/vocabulary/AddedBy"`
+	Name            string          `json:"Name,omitempty" predicate:"rdfs:label"`
+	NamespaceName   string          `json:"NamespaceName,omitempty"`
+	Version         string          `json:"Version,omitempty"`
+	Vulnerabilities []Vulnerability `json:"Vulnerabilities" predicate:"vocab:hasVulnerability"`
+	AddedBy         string          `json:"AddedBy,omitempty"`
 }
+
 // Vulnerability represents vulnerability entity returned by Clair
 type Vulnerability struct {
 	Name           string                 `json:"Name,omitempty" predicate:"name"`
