@@ -13,18 +13,17 @@ import (
 
 )
 
+
+/*
 type responseFuseki struct {
 	count int 		 `json:"count,omitempty"`
 	tripleCount int	 `json:"tripleCount,omitempty"`
 	quadCount int	 `json:"quadCount,omitempty"`
 }
+*/
 
 const (
 	siteHost     string = "http://10.6.91.175:3030"
-	resource	 string = "https://dockerpedia.inf.utfsm.cl/resource/"
-	vocabulary	 string = "https://dockerpedia.inf.utfsm.cl/vocabulary/"
-	softwarePackage string = "SoftwarePackage"
-	packageVersion string =  "PackageVersion"
 )
 
 func sendToFuseki(buffer bytes.Buffer){
@@ -68,8 +67,8 @@ func buildContext(prefixes []string, base string) (*tstore.Context, error) {
 //todo: related layer with operating system
 func tripleLayers(layers []docker.FsLayer, imageName string, triples *[]tstore.Triple){
 	for _, layer := range layers{
-		layerURI := fmt.Sprint("ImageLayer:%s", layer.BlobSum)
-		imageURI := fmt.Sprint("SoftwareImage:%s", imageName)
+		layerURI := fmt.Sprintf("ImageLayer:%s", layer.BlobSum)
+		imageURI := fmt.Sprintf("SoftwareImage:%s", imageName)
 
 		*triples = append(*triples,
 			tstore.SubjPred(layerURI, "rdfs:type").Resource("resource/ImageLayer"),
@@ -114,7 +113,7 @@ func triplesFeatureVersion(feature clair.Feature, triples *[]tstore.Triple){
 		tstore.SubjPred(featureVersionURI, "rdf:type").Resource("resource/PackageVersion"),
 	)
 	//relation with layer
-	layerURI := fmt.Sprint("ImageLayer:%s", feature.AddedBy)
+	layerURI := fmt.Sprintf("ImageLayer:%s", feature.AddedBy)
 	*triples = append(*triples,
 		tstore.SubjPred(featureVersionURI, "vocab:modifyLayer").Resource(layerURI),
 		tstore.SubjPred(layerURI, "vocab:ismodifiedBy").Resource(featureVersionURI),
@@ -161,7 +160,7 @@ This method encodes:
 SoftwareVulnerability rdf:type
 SecurityRevision
  */
-func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Feature, triples *[]tstore.Triple, context *tstore.Context){
+func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Feature, triples *[]tstore.Triple){
 	packageVersionURI := fmt.Sprintf("PackageVersion:%s-%s",  feature.Name, feature.Version)
 	vulnerabilityURI := fmt.Sprintf("SoftwareVulnerability:%s", vulnerability.Name)
 	operatingSystemURI := fmt.Sprintf("OperatingSystem:%s", feature.NamespaceName)
@@ -229,9 +228,13 @@ func AnnotateFuseki(image SoftwareImage) {
 		encodePackageVersion(*feature, context)
 
 		for _, vulnerability := range feature.Vulnerabilities {
-			triplesVulnerabilities(vulnerability, *feature, &triples, context)
+			triplesVulnerabilities(vulnerability, *feature, &triples)
 			encodeVulnerability(vulnerability, context)
 		}
+	}
+
+	for _, layer := range image.FsLayers {
+		fmt.Println(layer.BlobSum)
 	}
 	//encode all triples
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
