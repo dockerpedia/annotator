@@ -78,19 +78,23 @@ func tripleLayers(layers []docker.FsLayer, imageName string, triples *[]tstore.T
 	}
 }
 
-func triplesNameSpace(namespace string, triples *[]tstore.Triple){
-	namespaceURI := fmt.Sprintf("OperatingSystem:%s", namespace)
-	triple := tstore.SubjPred(namespaceURI, "rdf:type").Resource("resource/OperatingSystem")
-	featureSplit := strings.Split(namespace, ":")
-	if len(featureSplit) == 2 {
-		namespace := Namespace{OperatingSystem:featureSplit[0], Version:featureSplit[1]}
-		namespaceURI = fmt.Sprintf("OperatingSystem:%s-%s", namespace.OperatingSystem, namespace.Version)
+func getNamespaceURI(namespaceString string) (string) {
+	namespaceSplit := strings.Split(namespaceString, ":")
+	var namespace Namespace
+	if len(namespaceSplit) == 2 {
+		namespace = Namespace{OperatingSystem:namespaceSplit[0], Version:namespaceSplit[1]}
 	} else {
-		namespaceURI = fmt.Sprintf("OperatingSystem:unkwown")
+		namespace = Namespace{OperatingSystem:"unknown", Version:"unknown"}
 	}
-	*triples = append(*triples, triple)
+	namespaceURI := fmt.Sprintf("OperatingSystem:%s-%s", namespace.OperatingSystem, namespace.Version)
+	return namespaceURI
 }
 
+func triplesNameSpace(namespaceString string, triples *[]tstore.Triple){
+	namespaceURI := getNamespaceURI(namespaceString)
+	triple := tstore.SubjPred(namespaceURI, "rdf:type").Resource("resource/OperatingSystem")
+	*triples = append(*triples, triple)
+}
 
 func tripleSoftwareImage(image SoftwareImage, triples *[]tstore.Triple, context *tstore.Context){
 	var buffer bytes.Buffer
@@ -101,15 +105,12 @@ func tripleSoftwareImage(image SoftwareImage, triples *[]tstore.Triple, context 
 
 	)
 
-
 	imageStruct := tstore.TriplesFromStruct(resourceURI, &image)
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
 	enc.Encode(imageStruct...)
 	sendToFuseki(buffer)
 }
 
-//todo: package version
-//todo: operating system
 func triplesFeatureVersion(feature clair.Feature, triples *[]tstore.Triple){
 	//rdf:type
 	featureVersionURI := fmt.Sprintf("PackageVersion:%s-%s", feature.Name, feature.Version)
@@ -122,6 +123,7 @@ func triplesFeatureVersion(feature clair.Feature, triples *[]tstore.Triple){
 		tstore.SubjPred(featureVersionURI, "vocab:modifyLayer").Resource(layerURI),
 		tstore.SubjPred(layerURI, "vocab:ismodifiedBy").Resource(featureVersionURI),
 	)
+
 }
 
 func encodePackageVersion(feature clair.Feature, context *tstore.Context){
@@ -136,9 +138,20 @@ func encodePackageVersion(feature clair.Feature, context *tstore.Context){
 
 func triplesSoftwarePackage(feature clair.Feature, triples *[]tstore.Triple){
 	featureURI := fmt.Sprintf("SoftwarePackage:%s", feature.Name)
+	namespaceURI := getNamespaceURI(feature.NamespaceName)
 	*triples = append(*triples,
 		tstore.SubjPred(featureURI, "rdf:type").Resource("resource/SoftwarePackage"),
 	)
+	//relation with operating system
+	*triples = append(*triples,
+		tstore.SubjPred(featureURI, "vocab:hasPackages").Resource(namespaceURI),
+		tstore.SubjPred(namespaceURI, "vocab:isPackageOf").Resource(featureURI),
+
+	)
+
+
+
+
 }
 
 func encodeSoftwarePackage(feature clair.Feature, context *tstore.Context){
