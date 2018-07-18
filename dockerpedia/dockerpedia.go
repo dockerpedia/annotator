@@ -15,6 +15,40 @@ import (
 	"github.com/dockerpedia/annotator/docker"
 )
 
+// DebianReleasesMapping translates Debian code names and class names to version numbers
+var DebianReleasesMapping = map[string]string{
+	// Code names
+	"squeeze": "6",
+	"wheezy":  "7",
+	"jessie":  "8",
+	"stretch": "9",
+	"buster":  "10",
+	"sid":     "unstable",
+
+	// Class names
+	"oldoldstable": "7",
+	"oldstable":    "8",
+	"stable":       "9",
+	"testing":      "10",
+	"unstable":     "unstable",
+}
+
+// UbuntuReleasesMapping translates Ubuntu code names to version numbers
+var UbuntuReleasesMapping = map[string]string{
+	"precise": "12.04",
+	"quantal": "12.10",
+	"raring":  "13.04",
+	"trusty":  "14.04",
+	"utopic":  "14.10",
+	"vivid":   "15.04",
+	"wily":    "15.10",
+	"xenial":  "16.04",
+	"yakkety": "16.10",
+	"zesty":   "17.04",
+	"artful":  "17.10",
+	"bionic":  "18.04",
+}
+
 type v1Compatibility struct {
 	ID             	string    `json:"id"`
 	Parent          string    `json:"parent,omitempty"`
@@ -28,13 +62,15 @@ type v1Compatibility struct {
 
 //http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
 type SoftwareImage struct {
-	Name      string                     `form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
-	Version    string                     `form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
-	Size       int64                      `json:"size" predicate:"vocab:size"`
-	Features   []*clair.Feature           `json:"features"`
-	ManifestV1 *manifestV1.SignedManifest `json:"manifest"`
-	History    []v1Compatibility		  `json:"history"`
-	FsLayers   []docker.FsLayer
+	Name      	string        				`form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
+	Version    	string                     	`form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
+	PipPackages string 					  	`form:"pip_requirements" json:"pip_requirements" predicate:"vocab:hasPipRequirements"`
+	Size       	int64                      	`json:"size" predicate:"vocab:size"`
+	Features   	[]*clair.Feature           	`json:"features"`
+	ManifestV1 	*manifestV1.SignedManifest 	`json:"manifest"`
+	History    	[]v1Compatibility		  	`json:"history"`
+	BaseImage 	string 						`json:"base_image"`
+	FsLayers   	[]docker.FsLayer
 }
 
 //http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
@@ -62,6 +98,10 @@ var dockerurl string = "https://registry-1.docker.io/"
 var username string = "" // anonymous
 var password string = "" // anonymous
 
+func detectBaseImage(newImage SoftwareImage) (string){
+	return newImage.Features[0].NamespaceName
+}
+
 func NewRepository(c *gin.Context) {
 	clientRegistry := registryClient.New(dockerurl, username, password)
 	var newImage SoftwareImage
@@ -85,13 +125,19 @@ func NewRepository(c *gin.Context) {
 		//Get features
 		newImage.Features, dockerImage, err = klar.DockerAnalyze(newImage.Name)
 		newImage.FsLayers = dockerImage.FsLayers
+		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
+
+		//Save namespace
+		if newImage.BaseImage == "" {
+			newImage.BaseImage = detectBaseImage(newImage)
+		}
+
 		AnnotateFuseki(newImage)
 
 		if errManifest != nil {
 			log.Printf("Unable to the get features of the image %s:%s", newImage.Name, newImage.Version)
 		}
 
-		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
 
 		c.JSON(http.StatusOK, gin.H{
 			"result": newImage,
