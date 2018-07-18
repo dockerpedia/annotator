@@ -97,7 +97,11 @@ func tripleSoftwareImage(image SoftwareImage, triples *[]tstore.Triple, context 
 	resourceURI := fmt.Sprintf("SoftwareImage:%s", image.Name)
 	*triples = append(*triples,
 		tstore.SubjPred(resourceURI, "rdf:type").Resource("resource/SoftwareImage"),
+		tstore.SubjPred(resourceURI, "vocab:hasOperatingSystem").Resource("resource/SoftwareImage"),
+
 	)
+
+
 	imageStruct := tstore.TriplesFromStruct(resourceURI, &image)
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
 	enc.Encode(imageStruct...)

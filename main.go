@@ -12,7 +12,7 @@ func main() {
 
 	v1 := router.Group("/api/v1/")
 	{
-		v1.POST("/repositories/new", dockerpedia.NewRepository)
+		v1.POST("/repositories/new", dockerpedia. NewRepository)
 	}
 
 	router.Run(":8081")

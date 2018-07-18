@@ -124,6 +124,10 @@ func NewRepository(c *gin.Context) {
 
 		//Get features
 		newImage.Features, dockerImage, err = klar.DockerAnalyze(newImage.Name)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+
 		newImage.FsLayers = dockerImage.FsLayers
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
 
@@ -133,11 +137,6 @@ func NewRepository(c *gin.Context) {
 		}
 
 		AnnotateFuseki(newImage)
-
-		if errManifest != nil {
-			log.Printf("Unable to the get features of the image %s:%s", newImage.Name, newImage.Version)
-		}
-
 
 		c.JSON(http.StatusOK, gin.H{
 			"result": newImage,

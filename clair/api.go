@@ -245,6 +245,7 @@ func (a *apiV3) Annotate(image *docker.Image) ([]*Feature, error) {
 		feature := cf
 		fs = append(fs, feature)
 	}
+
 	return fs, nil
 }
 
@@ -267,3 +268,4 @@ func convertFeature(cf *clairpb.Feature) *Feature {
 		//AddedBy:       cf.AddedBy,
 	}
 }
+
