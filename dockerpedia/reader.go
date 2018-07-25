@@ -7,7 +7,7 @@ import (
 	"log"
 	"io/ioutil"
 	tstore "github.com/wallix/triplestore"
-
+	"strings"
 )
 
 
@@ -51,13 +51,34 @@ func convertResponse() []tstore.Triple{
 
 }
 
+func generatePackagesName(subject string, stringsSlice *[]string){
+	new := strings.Replace(subject, "http://dockerpedia.inf.utfsm.cl/vocab", "", -1)
+	*stringsSlice = append(*stringsSlice, new)
+}
+
 func getSoftwarePackages(){
 	triples := convertResponse()
+	packages := []string{}
 	src := tstore.NewSource()
 	src.Add(triples...)
 	snap := src.Snapshot()
 	softwareTriples := snap.WithPredicate("http://dockerpedia.inf.utfsm.cl/vocab#modifyLayer")
 	for _, tri := range softwareTriples {
-		fmt.Println(tri.Subject())
+		generatePackagesName(tri.Subject(), &packages)
+		packages = append(packages, tri.Subject())
 	}
+	writeAptGet(packages)
+}
+
+func writeAptGet(packages []string){
+	if len(packages) > 0 {
+		var buffer bytes.Buffer
+		buffer.WriteString(`apt-get update && apt-get install -y \` )
+		for i := 0; i < len(packages) - 1; i++{
+			buffer.WriteString(fmt.Sprintf("%s \t", packages[i]))
+		}
+		buffer.WriteString(fmt.Sprintf("%s", packages[len(packages)-1]))
+		fmt.Println(buffer.String())
+	}
+
 }

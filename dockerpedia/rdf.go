@@ -26,7 +26,7 @@ const (
 	siteHost     string = "http://10.6.91.175:3030"
 )
 
-func sendToFuseki(buffer bytes.Buffer){
+func 	 xsendToFuseki(buffer bytes.Buffer){
 	client := &http.Client{}
 
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/test3/data", siteHost), &buffer)
@@ -136,8 +136,10 @@ func encodePackageVersion(feature clair.Feature, context *tstore.Context){
 	sendToFuseki(buffer)
 }
 
-func triplesSoftwarePackage(feature clair.Feature, triples *[]tstore.Triple){
+func triplesSoftwarePackage(imageName string, feature clair.Feature, triples *[]tstore.Triple){
 	featureURI := fmt.Sprintf("SoftwarePackage:%s", feature.Name)
+	softwareImageURI := fmt.Sprintf("SoftwareImage:%s", imageName)
+
 	namespaceURI := getNamespaceURI(feature.NamespaceName)
 	*triples = append(*triples,
 		tstore.SubjPred(featureURI, "rdf:type").Resource("resource/SoftwarePackage"),
@@ -146,11 +148,13 @@ func triplesSoftwarePackage(feature clair.Feature, triples *[]tstore.Triple){
 	*triples = append(*triples,
 		tstore.SubjPred(featureURI, "vocab:hasPackages").Resource(namespaceURI),
 		tstore.SubjPred(namespaceURI, "vocab:isPackageOf").Resource(featureURI),
-
 	)
 
-
-
+	//relation with software image
+	*triples = append(*triples,
+		tstore.SubjPred(softwareImageURI, "vocab:hasSoftwarePackage").Resource(featureURI),
+		tstore.SubjPred(featureURI, "vocab:isSoftwarePackageOf").Resource(softwareImageURI),
+	)
 
 }
 
@@ -172,6 +176,7 @@ func encodeVulnerability(vulnerability clair.Vulnerability, context *tstore.Cont
 	enc.Encode(vulnerabilityStruct...)
 	sendToFuseki(buffer)
 }
+
 /*
 This method encodes:
 SoftwareVulnerability rdf:type
@@ -237,7 +242,7 @@ func AnnotateFuseki(image SoftwareImage) {
 		triplesNameSpace(feature.NamespaceName, &triples)
 
 		//features
-		triplesSoftwarePackage(*feature, &triples)
+		triplesSoftwarePackage(image.Name, *feature, &triples)
 		encodeSoftwarePackage(*feature, context)
 
 		//featureVersion
