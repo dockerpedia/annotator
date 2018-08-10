@@ -13,6 +13,14 @@ import (
 	"github.com/dockerpedia/annotator/klar"
 	"github.com/gin-gonic/gin"
 	"github.com/dockerpedia/annotator/docker"
+	"fmt"
+	"bytes"
+	"strings"
+	"errors"
+)
+
+const (
+	tmpDockerDir = "./workflows/"
 )
 
 // DebianReleasesMapping translates Debian code names and class names to version numbers
@@ -50,11 +58,15 @@ var UbuntuReleasesMapping = map[string]string{
 }
 
 type v1Compatibility struct {
+	Architecture 	string    `json:architecture`
 	ID             	string    `json:"id"`
 	Parent          string    `json:"parent,omitempty"`
 	Comment         string    `json:"comment,omitempty"`
 	Created         time.Time `json:"created"`
-	ContainerConfig struct { Cmd []string } `json:"container_config,omitempty"`
+	ContainerConfig struct {
+		Cmd 			[]string `json:"Cmd,omitempty"`
+		Image    		string `json:"Image,omitempty"`
+	} `json:"container_config,omitempty"`
 	Author    string `json:"author,omitempty"`
 	ThrowAway bool   `json:"throwaway,omitempty"`
 }
@@ -103,12 +115,13 @@ func detectBaseImage(newImage SoftwareImage) (string){
 }
 
 func NewRepository(c *gin.Context) {
+	var bufferDockerfile bytes.Buffer
 	clientRegistry := registryClient.New(dockerurl, username, password)
 	var newImage SoftwareImage
 	if err := c.ShouldBindJSON(&newImage); err == nil {
 		//Get tag size
 		var dockerImage *docker.Image
-
+		imageFullName := fmt.Sprintf("%s:%s", newImage.Name, newImage.Version)
 		size, err := clientRegistry.TagSize(newImage.Name, newImage.Version)
 		if err != nil {
 			log.Printf(newImage.Name, "Unable to the get size of the image %s:%s", newImage.Version)
@@ -123,10 +136,11 @@ func NewRepository(c *gin.Context) {
 		newImage.ManifestV1 = manifest
 
 		//Get features
-		newImage.Features, dockerImage, err = klar.DockerAnalyze(newImage.Name)
+		newImage.Features, dockerImage, err = klar.DockerAnalyze(imageFullName)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
+
 
 		newImage.FsLayers = dockerImage.FsLayers
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
@@ -136,15 +150,57 @@ func NewRepository(c *gin.Context) {
 			newImage.BaseImage = detectBaseImage(newImage)
 		}
 
-		AnnotateFuseki(newImage)
-
+		installedLines, err := findLayerInstaller(newImage.History)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"err": err,
+			})
+		}
+		go AnnotateFuseki(newImage)
+		writeDockerfileContent(&bufferDockerfile, newImage.BaseImage, installedLines)
+		digest := dockerImage.Digest
+		dirImage := fmt.Sprintf("%s%s", tmpDockerDir, digest)
+		err = docker.WriteDockerfile(dirImage, &bufferDockerfile)
+		if err != nil{
+			log.Printf("write dockerfile failed %s", err)
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"result": newImage,
+			"dockerfile": bufferDockerfile.String(),
 		})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
+
+
+func writeDockerfileContent(buffer *bytes.Buffer, baseImage string, installedLines []string){
+	baseInstruction := fmt.Sprintf("FROM %s\n", baseImage)
+	buffer.WriteString(baseInstruction)
+	for _, line := range installedLines{
+		installInstruction := fmt.Sprintf("RUN %s\n", line)
+		buffer.WriteString(installInstruction)
+	}
+}
+
+
+func findLayerInstaller(history []v1Compatibility) ([]string, error){
+	var lines []string
+	if len(history) > 0 {
+		author := history[0].Author
+		for _, layer := range history {
+			if layer.Author == author {
+				cmd := strings.Join(layer.ContainerConfig.Cmd, " ")
+				cmd = strings.Replace(cmd, "/bin/sh -c ", "", -1)
+				lines = append([]string{cmd}, lines...)
+			}
+		}
+	} else {
+		err := errors.New("the image doesn't has the author image, please them")
+		return nil, err
+	}
+	return lines, nil
+}
+
 
 func parseManifestV1Compatibility(manifest *manifestV1.SignedManifest) []v1Compatibility {
 	var v1Items []v1Compatibility

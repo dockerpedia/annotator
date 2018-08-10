@@ -15,3 +15,4 @@ annotator
 *.swp
 .DS_Store
 credentials.sh
+workflows/
