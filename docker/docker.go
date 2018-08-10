@@ -13,6 +13,15 @@ import (
 	"time"
 
 	"github.com/dockerpedia/annotator/utils"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/api/types"
+	"errors"
+	"log"
+	"github.com/docker/docker/pkg/archive"
+	"golang.org/x/net/context"
+
+	"bytes"
+	"path/filepath"
 )
 
 const (
@@ -32,12 +41,31 @@ type Image struct {
 	user          string
 	password      string
 	client        http.Client
-	digest        string
+	Digest        string
 	schemaVersion int
 }
 
+func WriteDockerfile(path string, buf *bytes.Buffer) error {
+	os.Mkdir(path, 0700)
+	dockerfilePath := filepath.Join(path, "Dockerfile")
+	Dockerfile, err := os.OpenFile(dockerfilePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, 0666)
+	defer Dockerfile.Close()
+	if err != nil {
+		return err
+	}
+	fmt.Println(dockerfilePath)
+
+	_, err = Dockerfile.Write(buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
 func (i *Image) LayerName(index int) string {
-	s := fmt.Sprintf("%s%s", trimDigest(i.digest),
+	s := fmt.Sprintf("%s%s", trimDigest(i.Digest),
 		trimDigest(i.FsLayers[index].BlobSum))
 	return s
 }
@@ -100,6 +128,121 @@ type Config struct {
 const dockerHub = "registry-1.docker.io"
 
 var tokenRe = regexp.MustCompile(`Bearer realm="(.*?)",service="(.*?)",scope="(.*?)"`)
+
+
+type BuildResponse struct {
+	Stream string `json:"stream"`
+	Error  string `json:"error"`
+}
+
+func extractLastOutputFromBuildResponse(response types.ImageBuildResponse) (lastOutput string, err error) {
+	defer response.Body.Close()
+	r, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+	lastOutput = ""
+	rs := strings.Split(string(r), "\n")
+	i := len(rs) - 1
+	for lastOutput == "" && i >= 0 {
+		lastOutput = rs[i]
+		i--
+	}
+	if lastOutput == "" {
+		return "", errors.New("Could not parse container build response")
+	}
+	return lastOutput, nil
+}
+
+func parseBuildResponse(response types.ImageBuildResponse) (tag string, err error) {
+	lastOutput, err := extractLastOutputFromBuildResponse(response)
+	if err != nil {
+		return "", err
+	}
+	var buildResponse BuildResponse
+
+	if err := json.Unmarshal([]byte(lastOutput), &buildResponse); err != nil {
+		return "", fmt.Errorf("Could not parse container build response. %s", err)
+	}
+	if buildResponse.Error != "" {
+		return "", fmt.Errorf("Image build failed. %s", buildResponse.Error)
+	}
+	return strings.TrimSuffix(buildResponse.Stream, "\n"), nil
+}
+
+
+func buildFromTarGz() {
+	cli, err := client.NewEnvClient()
+	file, err := os.OpenFile("workflow.tar.gz", os.O_RDONLY, 0666)
+	if err != nil {
+		log.Printf("file not found", err)
+		return
+	}
+
+	defer file.Close()
+
+	options := types.ImageBuildOptions{
+		Tags:           []string{"agent:latest"},
+		Remove:         true,
+		ForceRemove:    true,
+		PullParent:     false,
+		SuppressOutput: true,
+		Labels: map[string]string{
+			"mosorio.app": "agent",
+		},
+	}
+
+	response, err := cli.ImageBuild(context.Background(), file, options)
+	if err != nil {
+		log.Printf("err, %v", err)
+	}
+	responseOutput, err := parseBuildResponse(response)
+	log.Printf(responseOutput)
+	defer response.Body.Close()
+
+}
+
+func buildContextDocker(path string) (io.ReadCloser, error) {
+	content, err := archive.Tar(path, archive.Gzip)
+	if err != nil {
+		return nil, err
+	}
+
+	return content, nil
+}
+
+
+func buildFromFiles() {
+	cli, err := client.NewEnvClient()
+	dirPath := "/mosorio/repos/thesis/workflows/galaxy/internal_extinction/18.04"
+	buildCtx, err := buildContextDocker(dirPath)
+
+	defer buildCtx.Close()
+	defer os.RemoveAll(dirPath)
+
+	if err != nil {
+		log.Printf("build context failed")
+	}
+
+	options := types.ImageBuildOptions{
+		Tags:           []string{"agent:latest"},
+		Remove:         true,
+		ForceRemove:    true,
+		PullParent:     false,
+		SuppressOutput: true,
+		Labels: map[string]string{
+			"mosorio.app": "agent",
+		},
+	}
+
+	response, err := cli.ImageBuild(context.Background(), buildCtx, options)
+	if err != nil {
+		log.Printf("err, %v", err)
+	}
+	responseOutput, err := parseBuildResponse(response)
+	log.Printf(responseOutput)
+	defer response.Body.Close()
+}
 
 // NewImage parses image name which could be the ful name registry:port/name:tag
 // or in any other shorter forms and creates docker image entity without
@@ -246,7 +389,7 @@ func parseImageResponse(resp *http.Response, image *Image) error {
 		for i := range imageV2.Layers {
 			image.FsLayers[i].BlobSum = imageV2.Layers[i].Digest
 		}
-		image.digest = imageV2.Config.Digest
+		image.Digest = imageV2.Config.Digest
 		image.schemaVersion = imageV2.SchemaVersion
 	} else {
 		var imageV1 imageV1
