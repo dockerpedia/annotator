@@ -17,6 +17,7 @@ func main() {
 
 	}
 	router.StaticFS("/workflows/", http.Dir("workflows/"))
+	router.StaticFS("/logs/", http.Dir("logs/"))
 
 
 	router.Run(":8081")
