@@ -19,10 +19,6 @@ import (
 	"errors"
 )
 
-const (
-	tmpDockerDir = "./workflows/"
-)
-
 // DebianReleasesMapping translates Debian code names and class names to version numbers
 var DebianReleasesMapping = map[string]string{
 	// Code names
@@ -106,6 +102,13 @@ type Layer struct {
 	ParentName string
 }
 
+type RequestWorkflow struct {
+	Name      	string `form:"image" json:"image"`
+	Version    	string `form:"tag" json:"tag"`
+	PipPackages string `form:"pip_requirements" json:"pip_requirements"`
+	OutputImage string `form:"output_image" json:"output_image"`
+}
+
 var dockerurl string = "https://registry-1.docker.io/"
 var username string = "" // anonymous
 var password string = "" // anonymous
@@ -118,54 +121,70 @@ func NewRepository(c *gin.Context) {
 	var bufferDockerfile bytes.Buffer
 	clientRegistry := registryClient.New(dockerurl, username, password)
 	var newImage SoftwareImage
-	if err := c.ShouldBindJSON(&newImage); err == nil {
+	var request RequestWorkflow
+	if err := c.ShouldBindJSON(&request); err == nil {
 		//Get tag size
 		var dockerImage *docker.Image
+		//Get the source image from the request
+		newImage.Name = request.Name
+		newImage.Version = request.Version
 		imageFullName := fmt.Sprintf("%s:%s", newImage.Name, newImage.Version)
+
+		/*
+		Get the info about the image
+		 */
 		size, err := clientRegistry.TagSize(newImage.Name, newImage.Version)
 		if err != nil {
 			log.Printf(newImage.Name, "Unable to the get size of the image %s:%s", newImage.Version)
 		}
 		newImage.Size = size
 
-		//Get manifest
 		manifest, errManifest := clientRegistry.Manifest(newImage.Name, newImage.Version)
 		if errManifest != nil {
 			log.Printf("Unable to the get manifest of the image %s:%s", newImage.Name, newImage.Version)
 		}
 		newImage.ManifestV1 = manifest
 
-		//Get features
+		/*
+		Ask about the features of image using Klar
+		 */
 		newImage.Features, dockerImage, err = klar.DockerAnalyze(imageFullName)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
-
-
+		/*
+		Copy layers and history
+		 */
 		newImage.FsLayers = dockerImage.FsLayers
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
 
-		//Save namespace
+		/*
+		Detect the base image
+		 */
 		if newImage.BaseImage == "" {
 			newImage.BaseImage = detectBaseImage(newImage)
 		}
 
+		/*
+		Find layer that install software and prepare the Dockerfile
+		 */
 		installedLines, err := findLayerInstaller(newImage.History)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"err": err,
 			})
 		}
-		go AnnotateFuseki(newImage)
 		writeDockerfileContent(&bufferDockerfile, newImage.BaseImage, installedLines)
-		digest := dockerImage.Digest
-		dirImage := fmt.Sprintf("%s%s", tmpDockerDir, digest)
-		err = docker.WriteDockerfile(dirImage, &bufferDockerfile)
-		if err != nil{
-			log.Printf("write dockerfile failed %s", err)
-		}
+
+		/*
+		Annotate using RDF store and build the image
+		 */
+		go AnnotateFuseki(newImage)
+		go docker.CreateImage(dockerImage.Digest, &bufferDockerfile)
+
 		c.JSON(http.StatusOK, gin.H{
 			"dockerfile": bufferDockerfile.String(),
+			"manifiest": newImage.History,
 		})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
