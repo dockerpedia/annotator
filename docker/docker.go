@@ -29,6 +29,11 @@ const (
 	stateName
 	statePort
 	stateTag
+
+)
+
+const (
+	workflowDir = "./workflows/"
 )
 
 // Image represents Docker image
@@ -45,22 +50,55 @@ type Image struct {
 	schemaVersion int
 }
 
-func WriteDockerfile(path string, buf *bytes.Buffer) error {
+func CreateImage(digestImage string, buf *bytes.Buffer){
+	dirImage := fmt.Sprintf("%s%s", workflowDir, digestImage)
+	log.Printf("creating the image using dir: %s", dirImage)
+	WriteDockerfile(dirImage, buf)
+	buildImagesFromFiles(dirImage)
+}
+
+func buildImagesFromFiles(dirImage string) {
+	cli, err := client.NewEnvClient()
+	buildCtx, err := buildContextDocker(dirImage)
+
+	defer buildCtx.Close()
+	//defer os.RemoveAll(dirImage)
+
+	if err != nil {
+		log.Printf("build context failed")
+	}
+
+	options := types.ImageBuildOptions{
+		Tags:           []string{"agent:latest"},
+		Remove:         true,
+		ForceRemove:    true,
+		PullParent:     false,
+		SuppressOutput: true,
+		Labels: map[string]string{
+			"mosorio.app": "agent",
+		},
+	}
+
+	response, err := cli.ImageBuild(context.Background(), buildCtx, options)
+	if err != nil {
+		log.Printf("err, %v", err)
+	}
+	responseOutput, err := parseBuildResponse(response)
+	log.Printf(responseOutput)
+	defer response.Body.Close()
+}
+
+
+func WriteDockerfile(path string, buf *bytes.Buffer) {
 	os.Mkdir(path, 0700)
 	dockerfilePath := filepath.Join(path, "Dockerfile")
 	Dockerfile, err := os.OpenFile(dockerfilePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, 0666)
 	defer Dockerfile.Close()
-	if err != nil {
-		return err
-	}
-	fmt.Println(dockerfilePath)
 
 	_, err = Dockerfile.Write(buf.Bytes())
-	if err != nil {
-		return err
+	if err != nil{
+		log.Printf("write dockerfile failed %s", err)
 	}
-
-	return nil
 
 }
 
@@ -209,39 +247,6 @@ func buildContextDocker(path string) (io.ReadCloser, error) {
 	}
 
 	return content, nil
-}
-
-
-func buildFromFiles() {
-	cli, err := client.NewEnvClient()
-	dirPath := "/mosorio/repos/thesis/workflows/galaxy/internal_extinction/18.04"
-	buildCtx, err := buildContextDocker(dirPath)
-
-	defer buildCtx.Close()
-	defer os.RemoveAll(dirPath)
-
-	if err != nil {
-		log.Printf("build context failed")
-	}
-
-	options := types.ImageBuildOptions{
-		Tags:           []string{"agent:latest"},
-		Remove:         true,
-		ForceRemove:    true,
-		PullParent:     false,
-		SuppressOutput: true,
-		Labels: map[string]string{
-			"mosorio.app": "agent",
-		},
-	}
-
-	response, err := cli.ImageBuild(context.Background(), buildCtx, options)
-	if err != nil {
-		log.Printf("err, %v", err)
-	}
-	responseOutput, err := parseBuildResponse(response)
-	log.Printf(responseOutput)
-	defer response.Body.Close()
 }
 
 // NewImage parses image name which could be the ful name registry:port/name:tag
