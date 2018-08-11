@@ -53,6 +53,21 @@ var UbuntuReleasesMapping = map[string]string{
 	"bionic":  "18.04",
 }
 
+//http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
+type SoftwareImage struct {
+	Name      	string        				`form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
+	Version    	string                     	`form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
+	PipPackages string 					  	`form:"pip_requirements" json:"pip_requirements" predicate:"vocab:hasPipRequirements"`
+	Size       	int64                      	`json:"size" predicate:"vocab:size"`
+	Features   	[]*clair.Feature           	`json:"features"`
+	ManifestV1 	*manifestV1.SignedManifest 	`json:"manifest"`
+	History    	[]v1Compatibility		  	`json:"history"`
+	BaseImage 	string 						`json:"base_image"`
+	FsLayers   	[]docker.FsLayer
+}
+
+
+//V1Compatibility is the raw V1 compatibility information. This will contain the JSON object describing the V1 of this image.
 type v1Compatibility struct {
 	Architecture 	string    `json:architecture`
 	ID             	string    `json:"id"`
@@ -67,41 +82,30 @@ type v1Compatibility struct {
 	ThrowAway bool   `json:"throwaway,omitempty"`
 }
 
-
-//http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
-type SoftwareImage struct {
-	Name      	string        				`form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
-	Version    	string                     	`form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
-	PipPackages string 					  	`form:"pip_requirements" json:"pip_requirements" predicate:"vocab:hasPipRequirements"`
-	Size       	int64                      	`json:"size" predicate:"vocab:size"`
-	Features   	[]*clair.Feature           	`json:"features"`
-	ManifestV1 	*manifestV1.SignedManifest 	`json:"manifest"`
-	History    	[]v1Compatibility		  	`json:"history"`
-	BaseImage 	string 						`json:"base_image"`
-	FsLayers   	[]docker.FsLayer
-}
-
-//http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
+// http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
 type Dockerfile struct {
 	Steps     []string `json:steps`
 }
 
-//http://dockerpedia.inf.utfsm.cl/resource/PackageVersion/{id}
+//	Version of SoftwarePackage
+// http://dockerpedia.inf.utfsm.cl/resource/PackageVersion/{id}
 type FeatureVersion struct {
 	Version string  `json:"Version,omitempty" predicate:"rdfs:label"`
 }
 
+//Operarting system of the SoftwareImage and SoftwarePackage
 type Namespace struct {
 	OperatingSystem string `json:"NamespaceName,omitempty" predicate:"vocab:operatingSystem"`
 	Version string `json:"Version,omitempty" predicate:"vocab:operatingSystemVersion"`
 }
 
-
+//Layer of DockerImage
 type Layer struct {
 	Name       string  `predicate:"rdfs:label"`
 	ParentName string
 }
 
+// Get the params of Workflow (API)
 type RequestWorkflow struct {
 	Name      	string `form:"image" json:"image"`
 	Version    	string `form:"tag" json:"tag"`
@@ -109,13 +113,16 @@ type RequestWorkflow struct {
 	OutputImage string `form:"output_image" json:"output_image"`
 }
 
-var dockerurl string = "https://registry-1.docker.io/"
-var username string = "" // anonymous
-var password string = "" // anonymous
-
+//Detect the operating system using the information of SoftwarePackage
 func detectBaseImage(newImage SoftwareImage) (string){
 	return newImage.Features[0].NamespaceName
 }
+
+
+
+var dockerurl string = "https://registry-1.docker.io/"
+var username string = "" // anonymous
+var password string = "" // anonymous
 
 func NewRepository(c *gin.Context) {
 	var bufferDockerfile bytes.Buffer
@@ -190,7 +197,6 @@ func NewRepository(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 }
-
 
 func writeDockerfileContent(buffer *bytes.Buffer, baseImage string, installedLines []string){
 	baseInstruction := fmt.Sprintf("FROM %s\n", baseImage)
