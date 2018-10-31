@@ -21,7 +21,7 @@ type responseFuseki struct {
 }
 */
 const (
-	siteHost     string = "http://10.6.91.175:3030"
+	siteHost     string = "http://localhost:3030"
 )
 
 func convertImageName(imageName string) string {
@@ -30,7 +30,7 @@ func convertImageName(imageName string) string {
 func sendToFuseki(buffer bytes.Buffer){
 	client := &http.Client{}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/test3/data", siteHost), &buffer)
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/tesis/data", siteHost), &buffer)
 	req.Header.Set("Content-Type", "text/plain")
 
 	if err != nil {

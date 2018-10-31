@@ -189,6 +189,9 @@ func NewRepository(c *gin.Context) {
 		go AnnotateFuseki(newImage)
 		//go docker.CreateImage(request.OutputImage, dockerImage.Digest, &bufferDockerfile)
 
+		for _, f := range newImage.Features {
+			fmt.Println(f.Name, " ", f.Version)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"dockerfile": bufferDockerfile.String(),
 			"manifiest": newImage.History,
