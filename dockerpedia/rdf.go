@@ -183,7 +183,7 @@ func encodeVulnerability(vulnerability clair.Vulnerability, context *tstore.Cont
 /*
 This method encodes:
 SoftwareVulnerability rdf:type
-SecurityRevision
+TODO: SecurityRevision
  */
 func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Feature, triples *[]tstore.Triple){
 	packageVersionURI := fmt.Sprintf("PackageVersion:%s-%s",  feature.Name, feature.Version)
@@ -192,8 +192,8 @@ func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Fea
 
 	*triples = append(*triples,
 		tstore.SubjPred(vulnerabilityURI, "rdf:type").Resource("resource/SoftwareVulnerability"),
+		tstore.SubjPred(vulnerabilityURI, "vocab:affectsPackageVersion").Resource(packageVersionURI),
 		tstore.SubjPred(packageVersionURI, "vocab:hasVulnerability").Resource(vulnerabilityURI),
-		tstore.SubjPred(vulnerabilityURI, "vocab:affects").Resource(packageVersionURI),
 		tstore.SubjPred(vulnerabilityURI, "vocab:affectOS").Resource(operatingSystemURI),
 		tstore.SubjPred(operatingSystemURI, "vocab:isAffectedBy").Resource(vulnerabilityURI),
 	)
