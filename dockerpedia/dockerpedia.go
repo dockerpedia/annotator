@@ -56,30 +56,57 @@ var UbuntuReleasesMapping = map[string]string{
 //http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
 type SoftwareImage struct {
 	Name      	string        				`form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
-	Version    	string                     	`form:"tag" json:"tag" binding:"required" predicate:"vocab:version"`
-	PipPackages string 					  	`form:"pip_requirements" json:"pip_requirements" predicate:"vocab:hasPipRequirements"`
+	Version    	string                     	`form:"tag" json:"tag" binding:"required"`
 	Size       	int64                      	`json:"size" predicate:"vocab:size"`
 	Features   	[]*clair.Feature           	`json:"features"`
 	ManifestV1 	*manifestV1.SignedManifest 	`json:"manifest"`
 	History    	[]v1Compatibility		  	`json:"history"`
 	BaseImage 	string 						`json:"base_image"`
+	Labels 		Labels						`json:"labels"`
 	FsLayers   	[]docker.FsLayer
 }
 
+type Labels 	 	struct{
+	BuildDate 		string 	`json:"org.label-schema.build-date,omitempty",predicate:"vocab:buildDate"`
+	Description 	string  `json:"org.label-schema.description,omitempty"`
+	Name 			string  `json:"org.label-schema.name,omitempty"`
+	Usage 			string  `json:"org.label-schema.usage,omitempty"`
+	Url 			string  `json:"org.label-schema.url,omitempty"`
+	VcsUrl 			string  `json:"org.label-schema.vcs-url,omitempty"`
+	VcsRef 			string  `json:"org.label-schema.vcs-ref,omitempty"`
+	Vendor 			string  `json:"org.label-schema.vendor,omitempty"`
+	Version 		string  `json:"org.label-schema.version,omitempty"`
+	SchemaVersion 	string  `json:"org.label-schema.schema-version,omitempty"`
+	DockerCmd 		string  `json:"org.label-schema.docker.cmd,omitempty"`
+	DockerCmdDevel 	string  `json:"org.label-schema.docker.cmd.devel,omitempty"`
+	DockerCmdTest 	string  `json:"org.label-schema.docker.cmd.test,omitempty"`
+	DockerCmdDebug 	string  `json:"org.label-schema.docker.cmd.debug,omitempty"`
+	DockerCmdHelp 	string  `json:"org.label-schema.docker.cmd.help,omitempty"`
+	DockerCmdParams string  `json:"org.label-schema.docker.cmd.params,omitempty"`
+	RktCmd 			string  `json:"org.label-schema.rkt.cmd,omitempty"`
+	RktCmdDevel 	string  `json:"org.label-schema.rkt.cmd.devel,omitempty"`
+	RktCmdTest 		string  `json:"org.label-schema.rkt.cmd.test,omitempty"`
+	RktCmdDebug 	string  `json:"org.label-schema.rkt.cmd.debug,omitempty"`
+	RktCmdHelp 		string  `json:"org.label-schema.rkt.cmd.help,omitempty"`
+	RktCmdParams 	string  `json:"org.label-schema.rkt.cmd.params,omitempty"`
+}
 
 //V1Compatibility is the raw V1 compatibility information. This will contain the JSON object describing the V1 of this image.
 type v1Compatibility struct {
-	Architecture 	string    `json:architecture`
-	ID             	string    `json:"id"`
-	Parent          string    `json:"parent,omitempty"`
-	Comment         string    `json:"comment,omitempty"`
-	Created         time.Time `json:"created"`
+	Architecture 	string		`json:architecture`
+	ID             	string		`json:"id"`
+	Parent          string		`json:"parent,omitempty"`
+	Comment         string		`json:"comment,omitempty"`
+	Created         time.Time	`json:"created"`
+	Author    		string 		`json:"author,omitempty"`
+	ThrowAway		bool   		`json:"throwaway,omitempty"`
 	ContainerConfig struct {
-		Cmd 			[]string `json:"Cmd,omitempty"`
-		Image    		string `json:"Image,omitempty"`
+		Cmd 		[]string 	`json:"Cmd,omitempty"`
+		Image    	string 	 	`json:"Image,omitempty"`
 	} `json:"container_config,omitempty"`
-	Author    string `json:"author,omitempty"`
-	ThrowAway bool   `json:"throwaway,omitempty"`
+	Config 			struct{
+		Labels 		Labels 		`json:Labels,omitempty`
+	} `json:"config,omitempty"`
 }
 
 // http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
@@ -165,13 +192,20 @@ func NewRepository(c *gin.Context) {
 		newImage.FsLayers = dockerImage.FsLayers
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
 
+
+		/*
+		If exists, detect the labels of the image
+		*/
+		if len(newImage.History) > 0 {
+			newImage.Labels = newImage.History[0].Config.Labels
+		}
 		/*
 		Detect the base image
 		 */
-		if newImage.BaseImage == "" {
-			newImage.BaseImage = detectBaseImage(newImage)
-		}
-
+		//if newImage.BaseImage == "" {
+		//	newImage.BaseImage = detectBaseImage(newImage)
+		//}
+		newImage.BaseImage = "ubuntu"
 		/*
 		Find layer that install software and prepare the Dockerfile
 		 */
@@ -186,7 +220,7 @@ func NewRepository(c *gin.Context) {
 		/*
 		Annotate using RDF store and build the image
 		 */
-		go AnnotateFuseki(newImage)
+		AnnotateFuseki(newImage)
 		//go docker.CreateImage(request.OutputImage, dockerImage.Digest, &bufferDockerfile)
 
 		for _, f := range newImage.Features {
