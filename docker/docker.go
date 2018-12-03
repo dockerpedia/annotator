@@ -50,14 +50,14 @@ type Image struct {
 	schemaVersion int
 }
 
-func CreateImage(digestImage string, buf *bytes.Buffer){
+func CreateImage(outputImage, digestImage string, buf *bytes.Buffer){
 	dirImage := fmt.Sprintf("%s%s", workflowDir, digestImage)
 	log.Printf("creating the image using dir: %s", dirImage)
 	WriteDockerfile(dirImage, buf)
-	buildImagesFromFiles(dirImage)
+	buildImagesFromFiles(outputImage, "/Users/mosorio/go/src/github.com/dockerpedia/annotator/workflows/sha256:ae8182e0c43de1ea43c9487c925b6c09ddca4737cbba444ec911c136beb27016/")
 }
 
-func buildImagesFromFiles(dirImage string) {
+func buildImagesFromFiles(outputImage, dirImage string) {
 	cli, err := client.NewEnvClient()
 	buildCtx, err := buildContextDocker(dirImage)
 
@@ -73,7 +73,7 @@ func buildImagesFromFiles(dirImage string) {
 		Remove:         true,
 		ForceRemove:    true,
 		PullParent:     false,
-		SuppressOutput: true,
+		SuppressOutput: false,
 		Labels: map[string]string{
 			"mosorio.app": "agent",
 		},

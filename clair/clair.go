@@ -38,7 +38,7 @@ type headers struct {
 
 type Feature struct {
 	Name            string          `json:"Name,omitempty" predicate:"rdfs:label"`
-	Vulnerabilities []Vulnerability `json:"Vulnerabilities" predicate:"vocab:hasVulnerability"`
+	Vulnerabilities []Vulnerability `json:"Vulnerabilities"`
 	NamespaceName   string          `json:"NamespaceName,omitempty"`
 	Version         string          `json:"Version,omitempty"`
 	AddedBy         string          `json:"AddedBy,omitempty"`
