@@ -55,15 +55,14 @@ var UbuntuReleasesMapping = map[string]string{
 
 //http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
 type SoftwareImage struct {
-	Name      	string        				`form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
-	Version    	string                     	`form:"tag" json:"tag" binding:"required"`
-	Size       	int64                      	`json:"size" predicate:"vocab:size"`
+	Name      	string        				`form:"image" json:"image"`
+	Version    	string                     	`form:"tag" json:"tag"`
+	Size       	int64                      	`json:"size"`
 	Features   	[]*clair.Feature           	`json:"features"`
 	ManifestV1 	*manifestV1.SignedManifest 	`json:"manifest"`
 	History    	[]v1Compatibility		  	`json:"history"`
-	BaseImage 	string 						`json:"base_image"`
 	Labels 		Labels						`json:"labels"`
-	FsLayers   	[]docker.FsLayer
+	FsLayers   	[]docker.FsLayer			`json:"layers"`
 }
 
 type Labels 	 	struct{
@@ -152,21 +151,19 @@ var username string = "" // anonymous
 var password string = "" // anonymous
 
 func NewRepository(c *gin.Context) {
-	var bufferDockerfile bytes.Buffer
 	clientRegistry := registryClient.New(dockerurl, username, password)
 	var newImage SoftwareImage
 	var request RequestWorkflow
 	if err := c.ShouldBindJSON(&request); err == nil {
 		//Get tag size
 		var dockerImage *docker.Image
+
 		//Get the source image from the request
 		newImage.Name = request.Name
 		newImage.Version = request.Version
 		imageFullName := fmt.Sprintf("%s:%s", newImage.Name, newImage.Version)
 
-		/*
-		Get the info about the image
-		 */
+		//Get the info about the image
 		size, err := clientRegistry.TagSize(newImage.Name, newImage.Version)
 		if err != nil {
 			log.Printf(newImage.Name, "Unable to the get size of the image %s:%s", newImage.Version)
@@ -192,7 +189,6 @@ func NewRepository(c *gin.Context) {
 		newImage.FsLayers = dockerImage.FsLayers
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
 
-
 		/*
 		If exists, detect the labels of the image
 		*/
@@ -200,35 +196,15 @@ func NewRepository(c *gin.Context) {
 			newImage.Labels = newImage.History[0].Config.Labels
 		}
 		/*
-		Detect the base image
-		 */
-		//if newImage.BaseImage == "" {
-		//	newImage.BaseImage = detectBaseImage(newImage)
-		//}
-		newImage.BaseImage = "ubuntu"
-		/*
 		Find layer that install software and prepare the Dockerfile
 		 */
-		installedLines, err := findLayerInstaller(newImage.History)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"err": err,
 			})
 		}
-		writeDockerfileContent(&bufferDockerfile, newImage.BaseImage, installedLines)
-
-		/*
-		Annotate using RDF store and build the image
-		 */
-		AnnotateFuseki(newImage)
-		//go docker.CreateImage(request.OutputImage, dockerImage.Digest, &bufferDockerfile)
-
-		for _, f := range newImage.Features {
-			fmt.Println(f.Name, " ", f.Version)
-		}
 		c.JSON(http.StatusOK, gin.H{
-			"dockerfile": bufferDockerfile.String(),
-			"manifiest": newImage.History,
+			"image": newImage,
 		})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

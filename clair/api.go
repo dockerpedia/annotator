@@ -168,7 +168,6 @@ func (a *apiV1) Annotate(image *docker.Image) ([]*Feature, error) {
 	}
 	var fs []*Feature
 	for _, f := range envelope.Layer.Features {
-
 		feature := f
 		fs = append(fs, &feature)
 	}
