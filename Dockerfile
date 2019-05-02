@@ -16,7 +16,7 @@ COPY . .
 RUN go get -d -v ./...
 
 # Build the Go app
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /go/bin/go-docker .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /go/bin/go-annotator .
 
 
 ######## Start a new stage from scratch #######

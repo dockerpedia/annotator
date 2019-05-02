@@ -14,7 +14,7 @@ var store = make(map[string][]*clair.Vulnerability)
 
 
 func DockerAnalyze(imageName string) ([]*clair.Feature, *docker.Image,  error) {
-	clairAddr := "http://localhost:6060"
+	clairAddr := "http://clair.mosorio.me:80"
 	clairTimeout := time.Duration(1) * time.Minute
 
 	conf, err := newConfig(imageName, clairAddr)
