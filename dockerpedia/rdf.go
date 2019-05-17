@@ -30,7 +30,7 @@ func convertImageName(imageName string) string {
 
 func sendToFuseki(buffer bytes.Buffer){
 	client := &http.Client{}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/thesis/data", siteHost), &buffer)
+	req, err := http.NewRequest("POST", siteHost, &buffer)
 	req.Header.Set("Content-Type", "text/plain")
 
 	if err != nil {
@@ -59,7 +59,7 @@ func buildContext(prefixes []string, base string) (*tstore.Context, error) {
 		if splits[0] == "" || splits[1] == "" {
 			return context, fmt.Errorf("invalid prefix format: '%s'. expected \"prefix:http://my.uri\"", prefix)
 		}
-		context.Prefixes[splits[0]] = splits[1]
+		context.Prefixes[splits[0]] = base + splits[1]
 	}
 	context.Base = base
 	return context, nil
@@ -85,7 +85,7 @@ func tripleLayers(layers []docker.FsLayer, imageName string, triples *[]tstore.T
 		imageURI := fmt.Sprintf("SoftwareImage:%s", imageName)
 
 		*triples = append(*triples,
-			tstore.SubjPred(layerURI, "rdfs:type").Resource("resource/ImageLayer"),
+			tstore.SubjPred(layerURI, "rdfs:type").Resource("vocab:ImageLayer"),
 			tstore.SubjPred(layerURI, "vocab:isLayerOf").Resource(imageURI),
 			tstore.SubjPred(imageURI, "vocab:composedBy").Resource(layerURI),
 		)
@@ -94,40 +94,51 @@ func tripleLayers(layers []docker.FsLayer, imageName string, triples *[]tstore.T
 
 func triplesNameSpace(namespaceString string, triples *[]tstore.Triple){
 	namespaceURI := getNamespaceURI(namespaceString)
-	triple := tstore.SubjPred(namespaceURI, "rdf:type").Resource("resource/OperatingSystem")
+	triple := tstore.SubjPred(namespaceURI, "rdf:type").Resource("vocab:OperatingSystem")
 	*triples = append(*triples, triple)
 }
 
+func checkAddTriple(source, predicate, object string, triples *[]tstore.Triple){
+	if object != "" {
+		*triples = append(*triples,
+			tstore.SubjPred(source, predicate).Resource(object),
+		)
+	}
+}
 func triplesSoftwareImage(softwareImage SoftwareImage, triples *[]tstore.Triple, context *tstore.Context){
 	var buffer bytes.Buffer
 	imageName := convertImageName(softwareImage.Name)
-	softwareImageURI := fmt.Sprintf("SoftwareImage:%s",  imageName)
+	identifier := fmt.Sprintf("%s_%s",  imageName, softwareImage.Version)
+
+	softwareImageURI := fmt.Sprintf("SoftwareImage:%s",  identifier)
 
 	*triples = append(*triples,
-		tstore.SubjPred(softwareImageURI, "rdf:type").Resource("resource/SoftwareImage"),
-		tstore.SubjPred(softwareImageURI,"vocab:buildDate").Resource(softwareImage.Labels.BuildDate),
-		tstore.SubjPred(softwareImageURI,"vocab:description").StringLiteral(softwareImage.Labels.Description),
-		tstore.SubjPred(softwareImageURI,"vocab:name").StringLiteral(softwareImage.Labels.Name),
-		tstore.SubjPred(softwareImageURI,"vocab:usage").StringLiteral(softwareImage.Labels.Usage),
-		tstore.SubjPred(softwareImageURI,"vocab:url").StringLiteral(softwareImage.Labels.Url),
-		tstore.SubjPred(softwareImageURI,"vocab:vcsUrl").StringLiteral(softwareImage.Labels.VcsUrl),
-		tstore.SubjPred(softwareImageURI,"vocab:vcsRef").StringLiteral(softwareImage.Labels.VcsRef),
-		tstore.SubjPred(softwareImageURI,"vocab:vendor").StringLiteral(softwareImage.Labels.Vendor),
-		tstore.SubjPred(softwareImageURI,"vocab:version").StringLiteral(softwareImage.Labels.Version),
-		tstore.SubjPred(softwareImageURI,"vocab:schema-version").StringLiteral(softwareImage.Labels.SchemaVersion),
-		tstore.SubjPred(softwareImageURI,"vocab:dockerCmd").StringLiteral(softwareImage.Labels.DockerCmd),
-		tstore.SubjPred(softwareImageURI,"vocab:dockerCmdDevel").StringLiteral(softwareImage.Labels.DockerCmdDevel),
-		tstore.SubjPred(softwareImageURI,"vocab:dockerCmdTest").StringLiteral(softwareImage.Labels.DockerCmdTest),
-		tstore.SubjPred(softwareImageURI,"vocab:dockerCmdDebug").StringLiteral(softwareImage.Labels.DockerCmdDebug),
-		tstore.SubjPred(softwareImageURI,"vocab:dockerCmdHelp").StringLiteral(softwareImage.Labels.DockerCmdHelp),
-		tstore.SubjPred(softwareImageURI,"vocab:dockerCmdParams").StringLiteral(softwareImage.Labels.DockerCmdParams),
-		tstore.SubjPred(softwareImageURI,"vocab:rktCmd").StringLiteral(softwareImage.Labels.RktCmd),
-		tstore.SubjPred(softwareImageURI,"vocab:rktCmdDevel").StringLiteral(softwareImage.Labels.RktCmdDevel),
-		tstore.SubjPred(softwareImageURI,"vocab:rktCmdTest").StringLiteral(softwareImage.Labels.RktCmdTest),
-		tstore.SubjPred(softwareImageURI,"vocab:rktCmdDebug").StringLiteral(softwareImage.Labels.RktCmdDebug),
-		tstore.SubjPred(softwareImageURI,"vocab:rktCmdHelp").StringLiteral(softwareImage.Labels.RktCmdHelp),
-		tstore.SubjPred(softwareImageURI,"vocab:rktCmdParams").StringLiteral(softwareImage.Labels.RktCmdParams),
+		tstore.SubjPred(softwareImageURI, "rdf:type").Resource("vocab:SoftwareImage"),
+		tstore.SubjPred(softwareImageURI,"vocab:imageIdentifier").StringLiteral(identifier),
+		tstore.SubjPred(softwareImageURI,"vocab:tag").StringLiteral(softwareImage.Version),
+		tstore.SubjPred(softwareImageURI,"vocab:size").IntegerLiteral(int(softwareImage.Size)),
 	)
+
+	checkAddTriple(softwareImageURI,"vocab:description", softwareImage.Labels.Description, triples)
+	checkAddTriple(softwareImageURI,"vocab:name", softwareImage.Labels.Name, triples)
+	checkAddTriple(softwareImageURI,"vocab:usage", softwareImage.Labels.Usage, triples)
+	checkAddTriple(softwareImageURI,"vocab:url", softwareImage.Labels.Url, triples)
+	checkAddTriple(softwareImageURI,"vocab:vcsUrl", softwareImage.Labels.VcsUrl, triples)
+	checkAddTriple(softwareImageURI,"vocab:vcsRef", softwareImage.Labels.VcsRef, triples)
+	checkAddTriple(softwareImageURI,"vocab:vendor", softwareImage.Labels.Vendor, triples)
+	checkAddTriple(softwareImageURI,"vocab:schema-version", softwareImage.Labels.SchemaVersion, triples)
+	checkAddTriple(softwareImageURI,"vocab:dockerCmd", softwareImage.Labels.DockerCmd, triples)
+	checkAddTriple(softwareImageURI,"vocab:dockerCmdDevel", softwareImage.Labels.DockerCmdDevel, triples)
+	checkAddTriple(softwareImageURI,"vocab:dockerCmdTest", softwareImage.Labels.DockerCmdTest, triples)
+	checkAddTriple(softwareImageURI,"vocab:dockerCmdDebug", softwareImage.Labels.DockerCmdDebug, triples)
+	checkAddTriple(softwareImageURI,"vocab:dockerCmdHelp", softwareImage.Labels.DockerCmdHelp, triples)
+	checkAddTriple(softwareImageURI,"vocab:dockerCmdParams", softwareImage.Labels.DockerCmdParams, triples)
+	checkAddTriple(softwareImageURI,"vocab:rktCmd", softwareImage.Labels.RktCmd, triples)
+	checkAddTriple(softwareImageURI,"vocab:rktCmdDevel", softwareImage.Labels.RktCmdDevel, triples)
+	checkAddTriple(softwareImageURI,"vocab:rktCmdTest", softwareImage.Labels.RktCmdTest, triples)
+	checkAddTriple(softwareImageURI,"vocab:rktCmdDebug", softwareImage.Labels.RktCmdDebug, triples)
+	checkAddTriple(softwareImageURI,"vocab:rktCmdHelp", softwareImage.Labels.RktCmdHelp, triples)
+	checkAddTriple(softwareImageURI,"vocab:rktCmdParams", softwareImage.Labels.RktCmdParams, triples)
 
 	imageStruct := tstore.TriplesFromStruct(softwareImageURI, &softwareImage)
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
@@ -139,7 +150,7 @@ func triplesFeatureVersion(imageName string, feature clair.Feature, triples *[]t
 	//rdf:type
 	featureVersionURI := fmt.Sprintf("PackageVersion:%s-%s", feature.Name, feature.Version)
 	*triples = append(*triples,
-		tstore.SubjPred(featureVersionURI, "rdf:type").Resource("resource/PackageVersion"),
+		tstore.SubjPred(featureVersionURI, "rdf:type").Resource("vocab:PackageVersion"),
 	)
 	//relation with ImageLayer
 	layerURI := fmt.Sprintf("ImageLayer:%s", feature.AddedBy)
@@ -180,7 +191,7 @@ func triplesSoftwarePackage(imageName string, feature clair.Feature, triples *[]
 	//rdf:type
 	namespaceURI := getNamespaceURI(feature.NamespaceName)
 	*triples = append(*triples,
-		tstore.SubjPred(featureURI, "rdf:type").Resource("resource/SoftwarePackage"),
+		tstore.SubjPred(featureURI, "rdf:type").Resource("vocab:SoftwarePackage"),
 	)
 
 	//relation with DeploymentPlan
@@ -227,7 +238,7 @@ func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Fea
 
 	//SoftwareVulnerability - PackageVersion
 	*triples = append(*triples,
-		tstore.SubjPred(vulnerabilityURI, "rdf:type").Resource("resource/SoftwareVulnerability"),
+		tstore.SubjPred(vulnerabilityURI, "rdf:type").Resource("vocab:SoftwareVulnerability"),
 		tstore.SubjPred(vulnerabilityURI, "vocab:affectsPackageVersion").Resource(packageVersionURI),
 		tstore.SubjPred(packageVersionURI, "vocab:hasVulnerability").Resource(vulnerabilityURI),
 	)
@@ -242,7 +253,7 @@ func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Fea
 	if vulnerability.FixedBy != "" {
 		//SecurityRevision - Vulnerability
 		*triples = append(*triples,
-			tstore.SubjPred(securityRevisionURI, "rdf:type").Resource("resource/SecurityRevision"),
+			tstore.SubjPred(securityRevisionURI, "rdf:type").Resource("vocab:SecurityRevision"),
 			tstore.SubjPred(securityRevisionURI, "vocab:fixVulnerability").Resource(vulnerabilityURI),
 			tstore.SubjPred(vulnerabilityURI, "vocab:isFixedBy").Resource(securityRevisionURI),
 		)
@@ -256,15 +267,16 @@ func triplesVulnerabilities(vulnerability clair.Vulnerability, feature clair.Fea
 
 func preBuildContext() (*tstore.Context, error){
 	prefixes := []string{
-	"SoftwareImage:resource/SoftwareImage/",
-	"SoftwarePackage:resource/SoftwarePackage/",
-	"PackageVersion:resource/PackageVersion/",
-	"OperatingSystem:resource/OperatingSystem/",
-	"ImageLayer:resource/ImageLayer/",
-	"SoftwareVulnerability:resource/SoftwareVulnerability/",
-	"SoftwareRevision:resource/SoftwareRevision",
-	"DeploymentPlan:resource/DeploymentPlan",
-	"vocab:vocab#",
+		"vocab:vocab#",
+		"resource:resource/",
+		"SoftwareImage:resource/SoftwareImage/",
+		"SoftwarePackage:resource/SoftwarePackage/",
+		"PackageVersion:resource/PackageVersion/",
+		"OperatingSystem:resource/OperatingSystem/",
+		"ImageLayer:resource/ImageLayer/",
+		"SoftwareVulnerability:resource/SoftwareVulnerability/",
+		"SoftwareRevision:resource/SoftwareRevision",
+		"DeploymentPlan:resource/DeploymentPlan",
 	}
 	context, err := buildContext(prefixes, "http://dockerpedia.inf.utfsm.cl/" )
 	if err != nil {
@@ -274,7 +286,7 @@ func preBuildContext() (*tstore.Context, error){
 	return context, err
 }
 
-func AnnotateFuseki(softwareImage SoftwareImage) {
+func AnnotateFuseki(softwareImage SoftwareImage)  bytes.Buffer {
 	var buffer bytes.Buffer
 	var triples []tstore.Triple
 	context, err := preBuildContext()
@@ -317,4 +329,5 @@ func AnnotateFuseki(softwareImage SoftwareImage) {
 		fmt.Printf("error")
 	}
 	sendToFuseki(buffer)
+	return buffer
 }
