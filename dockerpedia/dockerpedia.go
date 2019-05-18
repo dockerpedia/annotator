@@ -1,22 +1,22 @@
 package dockerpedia
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	manifestV1 "github.com/docker/distribution/manifest/schema1"
+	"github.com/dockerpedia/annotator/clair"
+	"github.com/dockerpedia/annotator/docker"
+	annotatorConfig "github.com/dockerpedia/annotator/internal/config"
+	"github.com/dockerpedia/annotator/klar"
+	registryClient "github.com/dockerpedia/docker-registry-client/registry"
+	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
-	manifestV1 "github.com/docker/distribution/manifest/schema1"
-	registryClient "github.com/dockerpedia/docker-registry-client/registry"
-
-	"github.com/dockerpedia/annotator/clair"
-	"github.com/dockerpedia/annotator/klar"
-	"github.com/gin-gonic/gin"
-	"github.com/dockerpedia/annotator/docker"
-	"fmt"
-	"bytes"
 	"strings"
-	"errors"
+	"time"
 )
 
 // DebianReleasesMapping translates Debian code names and class names to version numbers
@@ -55,103 +55,103 @@ var UbuntuReleasesMapping = map[string]string{
 
 //http://dockerpedia.inf.utfsm.cl/resource/SoftwareImage/{id}
 type SoftwareImage struct {
-	Name      	string        				`form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
-	Version    	string                     	`form:"tag" json:"tag" binding:"required"`
-	Size       	int64                      	`json:"size" predicate:"vocab:size"`
-	Features   	[]*clair.Feature           	`json:"features"`
-	ManifestV1 	*manifestV1.SignedManifest 	`json:"manifest"`
-	History    	[]v1Compatibility		  	`json:"history"`
-	BaseImage 	string 						`json:"base_image"`
-	Labels 		Labels						`json:"labels"`
-	FsLayers   	[]docker.FsLayer
+	Name       string                     `form:"image" json:"image" binding:"required" predicate:"rdfs:label"`
+	Version    string                     `form:"tag" json:"tag" binding:"required"`
+	Size       int64                      `json:"size" predicate:"vocab:size"`
+	Features   []*clair.Feature           `json:"features"`
+	ManifestV1 *manifestV1.SignedManifest `json:"manifest"`
+	History    []v1Compatibility          `json:"history"`
+	BaseImage  string                     `json:"base_image"`
+	Labels     Labels                     `json:"labels"`
+	FsLayers   []docker.FsLayer
 }
 
-type Labels 	 	struct{
-	BuildDate 		string 	`json:"org.label-schema.build-date,omitempty",predicate:"vocab:buildDate"`
-	Description 	string  `json:"org.label-schema.description,omitempty"`
-	Name 			string  `json:"org.label-schema.name,omitempty"`
-	Usage 			string  `json:"org.label-schema.usage,omitempty"`
-	Url 			string  `json:"org.label-schema.url,omitempty"`
-	VcsUrl 			string  `json:"org.label-schema.vcs-url,omitempty"`
-	VcsRef 			string  `json:"org.label-schema.vcs-ref,omitempty"`
-	Vendor 			string  `json:"org.label-schema.vendor,omitempty"`
-	Version 		string  `json:"org.label-schema.version,omitempty"`
-	SchemaVersion 	string  `json:"org.label-schema.schema-version,omitempty"`
-	DockerCmd 		string  `json:"org.label-schema.docker.cmd,omitempty"`
-	DockerCmdDevel 	string  `json:"org.label-schema.docker.cmd.devel,omitempty"`
-	DockerCmdTest 	string  `json:"org.label-schema.docker.cmd.test,omitempty"`
-	DockerCmdDebug 	string  `json:"org.label-schema.docker.cmd.debug,omitempty"`
-	DockerCmdHelp 	string  `json:"org.label-schema.docker.cmd.help,omitempty"`
-	DockerCmdParams string  `json:"org.label-schema.docker.cmd.params,omitempty"`
-	RktCmd 			string  `json:"org.label-schema.rkt.cmd,omitempty"`
-	RktCmdDevel 	string  `json:"org.label-schema.rkt.cmd.devel,omitempty"`
-	RktCmdTest 		string  `json:"org.label-schema.rkt.cmd.test,omitempty"`
-	RktCmdDebug 	string  `json:"org.label-schema.rkt.cmd.debug,omitempty"`
-	RktCmdHelp 		string  `json:"org.label-schema.rkt.cmd.help,omitempty"`
-	RktCmdParams 	string  `json:"org.label-schema.rkt.cmd.params,omitempty"`
+type Labels struct {
+	BuildDate       string `json:"org.label-schema.build-date,omitempty",predicate:"vocab:buildDate"`
+	Description     string `json:"org.label-schema.description,omitempty"`
+	Name            string `json:"org.label-schema.name,omitempty"`
+	Usage           string `json:"org.label-schema.usage,omitempty"`
+	Url             string `json:"org.label-schema.url,omitempty"`
+	VcsUrl          string `json:"org.label-schema.vcs-url,omitempty"`
+	VcsRef          string `json:"org.label-schema.vcs-ref,omitempty"`
+	Vendor          string `json:"org.label-schema.vendor,omitempty"`
+	Version         string `json:"org.label-schema.version,omitempty"`
+	SchemaVersion   string `json:"org.label-schema.schema-version,omitempty"`
+	DockerCmd       string `json:"org.label-schema.docker.cmd,omitempty"`
+	DockerCmdDevel  string `json:"org.label-schema.docker.cmd.devel,omitempty"`
+	DockerCmdTest   string `json:"org.label-schema.docker.cmd.test,omitempty"`
+	DockerCmdDebug  string `json:"org.label-schema.docker.cmd.debug,omitempty"`
+	DockerCmdHelp   string `json:"org.label-schema.docker.cmd.help,omitempty"`
+	DockerCmdParams string `json:"org.label-schema.docker.cmd.params,omitempty"`
+	RktCmd          string `json:"org.label-schema.rkt.cmd,omitempty"`
+	RktCmdDevel     string `json:"org.label-schema.rkt.cmd.devel,omitempty"`
+	RktCmdTest      string `json:"org.label-schema.rkt.cmd.test,omitempty"`
+	RktCmdDebug     string `json:"org.label-schema.rkt.cmd.debug,omitempty"`
+	RktCmdHelp      string `json:"org.label-schema.rkt.cmd.help,omitempty"`
+	RktCmdParams    string `json:"org.label-schema.rkt.cmd.params,omitempty"`
 }
 
 //V1Compatibility is the raw V1 compatibility information. This will contain the JSON object describing the V1 of this image.
 type v1Compatibility struct {
-	Architecture 	string		`json:architecture`
-	ID             	string		`json:"id"`
-	Parent          string		`json:"parent,omitempty"`
-	Comment         string		`json:"comment,omitempty"`
-	Created         time.Time	`json:"created"`
-	Author    		string 		`json:"author,omitempty"`
-	ThrowAway		bool   		`json:"throwaway,omitempty"`
+	Architecture    string    `json:architecture`
+	ID              string    `json:"id"`
+	Parent          string    `json:"parent,omitempty"`
+	Comment         string    `json:"comment,omitempty"`
+	Created         time.Time `json:"created"`
+	Author          string    `json:"author,omitempty"`
+	ThrowAway       bool      `json:"throwaway,omitempty"`
 	ContainerConfig struct {
-		Cmd 		[]string 	`json:"Cmd,omitempty"`
-		Image    	string 	 	`json:"Image,omitempty"`
+		Cmd   []string `json:"Cmd,omitempty"`
+		Image string   `json:"Image,omitempty"`
 	} `json:"container_config,omitempty"`
-	Config 			struct{
-		Labels 		Labels 		`json:Labels,omitempty`
+	Config struct {
+		Labels Labels `json:Labels,omitempty`
 	} `json:"config,omitempty"`
 }
 
 // http://dockerpedia.inf.utfsm.cl/resource/DockerFile/{id}
 type Dockerfile struct {
-	Steps     []string `json:steps`
+	Steps []string `json:steps`
 }
 
 //	Version of SoftwarePackage
 // http://dockerpedia.inf.utfsm.cl/resource/PackageVersion/{id}
 type FeatureVersion struct {
-	Version string  `json:"Version,omitempty" predicate:"rdfs:label"`
+	Version string `json:"Version,omitempty" predicate:"rdfs:label"`
 }
 
 //Operating system of the SoftwareImage and SoftwarePackage
 type Namespace struct {
 	OperatingSystem string `json:"NamespaceName,omitempty" predicate:"vocab:operatingSystem"`
-	Version string `json:"Version,omitempty" predicate:"vocab:operatingSystemVersion"`
+	Version         string `json:"Version,omitempty" predicate:"vocab:operatingSystemVersion"`
 }
 
 //Layer of DockerImage
 type Layer struct {
-	Name       string  `predicate:"rdfs:label"`
+	Name       string `predicate:"rdfs:label"`
 	ParentName string
 }
 
 // Get the params of Workflow (API)
 type RequestWorkflow struct {
-	Name      	string `form:"image" json:"image"`
-	Version    	string `form:"tag" json:"tag"`
+	Name        string `form:"image" json:"image"`
+	Version     string `form:"tag" json:"tag"`
 	PipPackages string `form:"pip_requirements" json:"pip_requirements"`
 	OutputImage string `form:"output_image" json:"output_image"`
 }
 
 //Detect the operating system using the information of SoftwarePackage
-func detectBaseImage(newImage SoftwareImage) (string){
+func detectBaseImage(newImage SoftwareImage) (string) {
 	return newImage.Features[0].NamespaceName
 }
-
-
 
 var dockerurl string = "https://registry-1.docker.io/"
 var username string = "" // anonymous
 var password string = "" // anonymous
 
 func NewRepository(c *gin.Context) {
+	configuration, _ := annotatorConfig.New()
+
 	var bufferDockerfile bytes.Buffer
 	clientRegistry := registryClient.New(dockerurl, username, password)
 	var newImage SoftwareImage
@@ -182,7 +182,7 @@ func NewRepository(c *gin.Context) {
 		/*
 		Ask about the features of image using Klar
 		 */
-		newImage.Features, dockerImage, err = klar.DockerAnalyze(imageFullName)
+		newImage.Features, dockerImage, err = klar.DockerAnalyze(imageFullName, configuration.Clair.Address, configuration.Clair.Port)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
@@ -191,7 +191,6 @@ func NewRepository(c *gin.Context) {
 		 */
 		newImage.FsLayers = dockerImage.FsLayers
 		newImage.History = parseManifestV1Compatibility(newImage.ManifestV1)
-
 
 		/*
 		If exists, detect the labels of the image
@@ -219,8 +218,7 @@ func NewRepository(c *gin.Context) {
 		/*
 		Annotate using RDF store and build the image
 		 */
-		AnnotateFuseki(newImage)
-
+		AnnotateFuseki(newImage, configuration.Endpoint.Address)
 
 		c.JSON(http.StatusOK, gin.H{
 		})
@@ -229,17 +227,16 @@ func NewRepository(c *gin.Context) {
 	}
 }
 
-func writeDockerfileContent(buffer *bytes.Buffer, baseImage string, installedLines []string){
+func writeDockerfileContent(buffer *bytes.Buffer, baseImage string, installedLines []string) {
 	baseInstruction := fmt.Sprintf("FROM %s\n", baseImage)
 	buffer.WriteString(baseInstruction)
-	for _, line := range installedLines{
+	for _, line := range installedLines {
 		installInstruction := fmt.Sprintf("RUN %s\n", line)
 		buffer.WriteString(installInstruction)
 	}
 }
 
-
-func findLayerInstaller(history []v1Compatibility) ([]string, error){
+func findLayerInstaller(history []v1Compatibility) ([]string, error) {
 	var lines []string
 	if len(history) > 0 {
 		author := history[0].Author
@@ -256,7 +253,6 @@ func findLayerInstaller(history []v1Compatibility) ([]string, error){
 	}
 	return lines, nil
 }
-
 
 func parseManifestV1Compatibility(manifest *manifestV1.SignedManifest) []v1Compatibility {
 	var v1Items []v1Compatibility

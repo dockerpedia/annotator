@@ -13,8 +13,9 @@ import (
 var store = make(map[string][]*clair.Vulnerability)
 
 
-func DockerAnalyze(imageName string) ([]*clair.Feature, *docker.Image,  error) {
-	clairAddr := "http://clair.mosorio.me:80"
+func DockerAnalyze(imageName, clairHost, clairPort string) ([]*clair.Feature, *docker.Image,  error) {
+	clairAddr := fmt.Sprintf("%s:%s", clairHost, clairPort)
+	//todo: Timeout must be a configuration parameter
 	clairTimeout := time.Duration(1) * time.Minute
 
 	conf, err := newConfig(imageName, clairAddr)

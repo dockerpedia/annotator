@@ -29,6 +29,6 @@ WORKDIR /root/
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /go/bin/annotator .
 
-EXPOSE 8080
+EXPOSE 8081
 
 CMD ["./annotator"]
