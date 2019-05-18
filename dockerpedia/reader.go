@@ -45,7 +45,6 @@ func convertResponse() []tstore.Triple{
 	if err != nil{
 		log.Println("error reading the data")
 	}
-	fmt.Println(data)
 	r:= bytes.NewReader(data)
 	dec := tstore.NewDatasetDecoder(tstore.NewLenientNTDecoder, r)
 
@@ -75,7 +74,6 @@ func getSoftwarePackages(){
 		generatePackagesName(literal.Value(), &packages)
 		packages = append(packages, literal.Value())
 	}
-	fmt.Println(packages)
 	//writeAptGet(packages)
 }
 
@@ -103,7 +101,6 @@ func writeAptGet(packages []string){
 			buffer.WriteString(fmt.Sprintf("%s \t", packages[i]))
 		}
 		buffer.WriteString(fmt.Sprintf("%s", packages[len(packages)-1]))
-		fmt.Println(buffer.String())
 	}
 }
 
@@ -115,7 +112,6 @@ func writeYum(packages []string){
 			buffer.WriteString(fmt.Sprintf("%s \t", packages[i]))
 		}
 		buffer.WriteString(fmt.Sprintf("%s", packages[len(packages)-1]))
-		fmt.Println(buffer.String())
 	}
 
 }

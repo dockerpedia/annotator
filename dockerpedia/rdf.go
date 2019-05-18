@@ -21,11 +21,12 @@ type responseFuseki struct {
 }
 */
 const (
-	siteHost     string = "http://localhost:3030"
+	siteHost     string = "http://localhost:3030/v3/data"
 )
 
-func convertImageName(imageName string) string {
-	return strings.Replace(imageName, "/", "-", -1)
+func convertImageName(image SoftwareImage) string {
+	imageName := strings.Replace(image.Name, "/", "-", -1)
+	return fmt.Sprintf("%s_%s",  imageName, image.Version)
 }
 
 func sendToFuseki(buffer bytes.Buffer){
@@ -107,8 +108,7 @@ func checkAddTriple(source, predicate, object string, triples *[]tstore.Triple){
 }
 func triplesSoftwareImage(softwareImage SoftwareImage, triples *[]tstore.Triple, context *tstore.Context){
 	var buffer bytes.Buffer
-	imageName := convertImageName(softwareImage.Name)
-	identifier := fmt.Sprintf("%s_%s",  imageName, softwareImage.Version)
+	identifier := convertImageName(softwareImage)
 
 	softwareImageURI := fmt.Sprintf("SoftwareImage:%s",  identifier)
 
@@ -119,26 +119,26 @@ func triplesSoftwareImage(softwareImage SoftwareImage, triples *[]tstore.Triple,
 		tstore.SubjPred(softwareImageURI,"vocab:size").IntegerLiteral(int(softwareImage.Size)),
 	)
 
-	checkAddTriple(softwareImageURI,"vocab:description", softwareImage.Labels.Description, triples)
-	checkAddTriple(softwareImageURI,"vocab:name", softwareImage.Labels.Name, triples)
-	checkAddTriple(softwareImageURI,"vocab:usage", softwareImage.Labels.Usage, triples)
-	checkAddTriple(softwareImageURI,"vocab:url", softwareImage.Labels.Url, triples)
-	checkAddTriple(softwareImageURI,"vocab:vcsUrl", softwareImage.Labels.VcsUrl, triples)
-	checkAddTriple(softwareImageURI,"vocab:vcsRef", softwareImage.Labels.VcsRef, triples)
-	checkAddTriple(softwareImageURI,"vocab:vendor", softwareImage.Labels.Vendor, triples)
-	checkAddTriple(softwareImageURI,"vocab:schema-version", softwareImage.Labels.SchemaVersion, triples)
-	checkAddTriple(softwareImageURI,"vocab:dockerCmd", softwareImage.Labels.DockerCmd, triples)
-	checkAddTriple(softwareImageURI,"vocab:dockerCmdDevel", softwareImage.Labels.DockerCmdDevel, triples)
-	checkAddTriple(softwareImageURI,"vocab:dockerCmdTest", softwareImage.Labels.DockerCmdTest, triples)
-	checkAddTriple(softwareImageURI,"vocab:dockerCmdDebug", softwareImage.Labels.DockerCmdDebug, triples)
-	checkAddTriple(softwareImageURI,"vocab:dockerCmdHelp", softwareImage.Labels.DockerCmdHelp, triples)
-	checkAddTriple(softwareImageURI,"vocab:dockerCmdParams", softwareImage.Labels.DockerCmdParams, triples)
-	checkAddTriple(softwareImageURI,"vocab:rktCmd", softwareImage.Labels.RktCmd, triples)
-	checkAddTriple(softwareImageURI,"vocab:rktCmdDevel", softwareImage.Labels.RktCmdDevel, triples)
-	checkAddTriple(softwareImageURI,"vocab:rktCmdTest", softwareImage.Labels.RktCmdTest, triples)
-	checkAddTriple(softwareImageURI,"vocab:rktCmdDebug", softwareImage.Labels.RktCmdDebug, triples)
-	checkAddTriple(softwareImageURI,"vocab:rktCmdHelp", softwareImage.Labels.RktCmdHelp, triples)
-	checkAddTriple(softwareImageURI,"vocab:rktCmdParams", softwareImage.Labels.RktCmdParams, triples)
+	//checkAddTriple(softwareImageURI,"vocab:description", softwareImage.Labels.Description, triples)
+	//checkAddTriple(softwareImageURI,"vocab:name", softwareImage.Labels.Name, triples)
+	//checkAddTriple(softwareImageURI,"vocab:usage", softwareImage.Labels.Usage, triples)
+	//checkAddTriple(softwareImageURI,"vocab:url", softwareImage.Labels.Url, triples)
+	//checkAddTriple(softwareImageURI,"vocab:vcsUrl", softwareImage.Labels.VcsUrl, triples)
+	//checkAddTriple(softwareImageURI,"vocab:vcsRef", softwareImage.Labels.VcsRef, triples)
+	//checkAddTriple(softwareImageURI,"vocab:vendor", softwareImage.Labels.Vendor, triples)
+	//checkAddTriple(softwareImageURI,"vocab:schema-version", softwareImage.Labels.SchemaVersion, triples)
+	//checkAddTriple(softwareImageURI,"vocab:dockerCmd", softwareImage.Labels.DockerCmd, triples)
+	//checkAddTriple(softwareImageURI,"vocab:dockerCmdDevel", softwareImage.Labels.DockerCmdDevel, triples)
+	//checkAddTriple(softwareImageURI,"vocab:dockerCmdTest", softwareImage.Labels.DockerCmdTest, triples)
+	//checkAddTriple(softwareImageURI,"vocab:dockerCmdDebug", softwareImage.Labels.DockerCmdDebug, triples)
+	//checkAddTriple(softwareImageURI,"vocab:dockerCmdHelp", softwareImage.Labels.DockerCmdHelp, triples)
+	//checkAddTriple(softwareImageURI,"vocab:dockerCmdParams", softwareImage.Labels.DockerCmdParams, triples)
+	//checkAddTriple(softwareImageURI,"vocab:rktCmd", softwareImage.Labels.RktCmd, triples)
+	//checkAddTriple(softwareImageURI,"vocab:rktCmdDevel", softwareImage.Labels.RktCmdDevel, triples)
+	//checkAddTriple(softwareImageURI,"vocab:rktCmdTest", softwareImage.Labels.RktCmdTest, triples)
+	//checkAddTriple(softwareImageURI,"vocab:rktCmdDebug", softwareImage.Labels.RktCmdDebug, triples)
+	//checkAddTriple(softwareImageURI,"vocab:rktCmdHelp", softwareImage.Labels.RktCmdHelp, triples)
+	//checkAddTriple(softwareImageURI,"vocab:rktCmdParams", softwareImage.Labels.RktCmdParams, triples)
 
 	imageStruct := tstore.TriplesFromStruct(softwareImageURI, &softwareImage)
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
@@ -293,7 +293,7 @@ func AnnotateFuseki(softwareImage SoftwareImage)  bytes.Buffer {
 	if err != nil {
 		log.Println("Failed build the context")
 	}
-	imageName := convertImageName(softwareImage.Name)
+	imageName := convertImageName(softwareImage)
 
 	triplesSoftwareImage(softwareImage, &triples, context)
 	tripleLayers(softwareImage.FsLayers, imageName, &triples)
@@ -319,9 +319,6 @@ func AnnotateFuseki(softwareImage SoftwareImage)  bytes.Buffer {
 
 	}
 
-	for _, layer := range softwareImage.FsLayers {
-		fmt.Println(layer.BlobSum)
-	}
 	//encode all triples
 	enc := tstore.NewLenientNTEncoderWithContext(&buffer, context)
 	err = enc.Encode(triples...)
