@@ -26,7 +26,7 @@ type ClairConfig struct {
 type Config struct {
 	Endpoint  	EndpointConfig `mapstructure:"endpoint"`
 	Server 		ServerConfig   `mapstructure:"server"`
-	Clair       ClairConfig    `mapstructure:"server"`
+	Clair       ClairConfig    `mapstructure:"clair"`
 }
 
 // NewConfig is used to generate a configuration instance which will be passed around the codebase
@@ -44,15 +44,14 @@ func initViper()  (*Config, error){
 		fmt.Printf("couldn't load config: %s", err)
 		os.Exit(1)
 	}
-	viper.WatchConfig() // Watch for changes to the configuration file and recompile
-	viper.OnConfigChange(func(e fsnotify.Event) {
+	v.WatchConfig() // Watch for changes to the configuration file and recompile
+	v.OnConfigChange(func(e fsnotify.Event) {
 		fmt.Println("Config file changed:", e.Name)
 	})
 
-	if err = viper.ReadInConfig(); err != nil {
+	if err = v.ReadInConfig(); err != nil {
 		log.Panicf("Error reading config file, %s", err)
 	}
-
 
 	var c Config
 	if err := v.Unmarshal(&c); err != nil {

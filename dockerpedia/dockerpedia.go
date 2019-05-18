@@ -151,6 +151,7 @@ var password string = "" // anonymous
 
 func NewRepository(c *gin.Context) {
 	configuration, _ := annotatorConfig.New()
+
 	var bufferDockerfile bytes.Buffer
 	clientRegistry := registryClient.New(dockerurl, username, password)
 	var newImage SoftwareImage
@@ -181,7 +182,6 @@ func NewRepository(c *gin.Context) {
 		/*
 		Ask about the features of image using Klar
 		 */
-		fmt.Println(configuration)
 		newImage.Features, dockerImage, err = klar.DockerAnalyze(imageFullName, configuration.Clair.Address, configuration.Clair.Port)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

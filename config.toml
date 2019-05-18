@@ -6,5 +6,5 @@ address = "https://dockerpedia.inf.utfsm.cl/v3/data"
 
 
 [clair]
-address = "https://clair.mosorio.me"
+address = "http://clair.mosorio.me"
 port    = "80"
