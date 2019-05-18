@@ -20,6 +20,7 @@ type responseFuseki struct {
 }
 */
 var	siteHost string
+var base string
 
 func convertImageName(image SoftwareImage) string {
 	imageName := strings.Replace(image.Name, "/", "-", -1)
@@ -104,9 +105,7 @@ func checkAddTriple(source, predicate, object string, triples *[]tstore.Triple) 
 func triplesSoftwareImage(softwareImage SoftwareImage, triples *[]tstore.Triple, context *tstore.Context) {
 	var buffer bytes.Buffer
 	identifier := convertImageName(softwareImage)
-
 	softwareImageURI := fmt.Sprintf("SoftwareImage:%s", identifier)
-
 	*triples = append(*triples,
 		tstore.SubjPred(softwareImageURI, "rdf:type").Resource("vocab:SoftwareImage"),
 		tstore.SubjPred(softwareImageURI, "vocab:imageIdentifier").StringLiteral(identifier),
@@ -263,7 +262,7 @@ func preBuildContext() (*tstore.Context, error) {
 		"SoftwareRevision:resource/SoftwareRevision",
 		"DeploymentPlan:resource/DeploymentPlan",
 	}
-	context, err := buildContext(prefixes, "http://dockerpedia.inf.utfsm.cl/")
+	context, err := buildContext(prefixes, base)
 	if err != nil {
 		log.Printf("Error")
 	}
@@ -271,8 +270,9 @@ func preBuildContext() (*tstore.Context, error) {
 	return context, err
 }
 
-func AnnotateFuseki(softwareImage SoftwareImage, endpointAddr string) bytes.Buffer {
+func AnnotateFuseki(softwareImage SoftwareImage, endpointAddr string) (string, error) {
 	siteHost = endpointAddr
+	base = "http://dockerpedia.inf.utfsm.cl/"
 	var buffer bytes.Buffer
 	var triples []tstore.Triple
 	context, err := preBuildContext()
@@ -311,5 +311,8 @@ func AnnotateFuseki(softwareImage SoftwareImage, endpointAddr string) bytes.Buff
 		fmt.Printf("error")
 	}
 	sendToFuseki(buffer)
-	return buffer
+
+	identifier := convertImageName(softwareImage)
+	softwareImageURI := fmt.Sprintf("%sresource/SoftwareImage/%s", base, identifier)
+	return softwareImageURI, err
 }
