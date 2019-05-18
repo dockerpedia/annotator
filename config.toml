@@ -1,5 +1,5 @@
 [server]
-listen = "127.0.0.1:8081"
+listen = ":8081"
 
 [endpoint]
 address = "https://dockerpedia.inf.utfsm.cl/v3/data"

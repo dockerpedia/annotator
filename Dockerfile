@@ -29,6 +29,9 @@ WORKDIR /root/
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /go/bin/annotator .
 
+# Copy configuration
+COPY config.toml .
+
 EXPOSE 8081
 
 CMD ["./annotator"]
