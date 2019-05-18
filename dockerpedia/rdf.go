@@ -145,8 +145,10 @@ func triplesSoftwareImage(softwareImage SoftwareImage, triples *[]tstore.Triple,
 
 func triplesFeatureVersion(imageName string, feature clair.Feature, triples *[]tstore.Triple) {
 	//rdf:type
+	featureVersionLabel := fmt.Sprintf("%s_%s", feature.Name, feature.Version)
 	featureVersionURI := fmt.Sprintf("PackageVersion:%s-%s", feature.Name, feature.Version)
 	*triples = append(*triples,
+		tstore.SubjPred(featureVersionURI, "rdfs:label").StringLiteral(featureVersionLabel),
 		tstore.SubjPred(featureVersionURI, "rdf:type").Resource("vocab:PackageVersion"),
 	)
 	//relation with ImageLayer
@@ -169,16 +171,6 @@ func triplesFeatureVersion(imageName string, feature clair.Feature, triples *[]t
 		tstore.SubjPred(featureVersionURI, "vocab:isInstalledOn").Resource(softwareImageURI),
 	)
 
-}
-
-func encodePackageVersion(feature clair.Feature, context *tstore.Context) {
-	var buffer bytes.Buffer
-	fv := FeatureVersion{feature.Version}
-	fvURI := fmt.Sprintf("PackageVersion:%s-%s", feature.Name, feature.Version)
-	featureVersionStruct := tstore.TriplesFromStruct(fvURI, fv)
-	encVersion := tstore.NewLenientNTEncoderWithContext(&buffer, context)
-	encVersion.Encode(featureVersionStruct...)
-	sendToFuseki(buffer)
 }
 
 func triplesSoftwarePackage(imageName string, feature clair.Feature, triples *[]tstore.Triple) {
@@ -296,7 +288,6 @@ func AnnotateFuseki(softwareImage SoftwareImage) bytes.Buffer {
 
 		//featureVersion
 		triplesFeatureVersion(imageName, *feature, &triples)
-		encodePackageVersion(*feature, context)
 
 		//namespace
 		triplesNameSpace(feature.NamespaceName, &triples)
