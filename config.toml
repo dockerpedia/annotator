@@ -2,4 +2,9 @@
 listen = "127.0.0.1:8081"
 
 [endpoint]
-address = "https://endpoint.mint.isi.edu"
+address = "https://dockerpedia.inf.utfsm.cl/v3/data"
+
+
+[clair]
+address = "https://clair.mosorio.me"
+port    = "80"

@@ -1,46 +1,21 @@
 package main
 
 import (
+	"github.com/dockerpedia/annotator/internal/config"
 	"github.com/dockerpedia/annotator/dockerpedia"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"log"
 	"net/http"
-	"github.com/spf13/viper"
-	"fmt"
-	"os"
+
 )
 
-
-type ServerConfig struct {
-	Listen string
-	Port string
-}
-
-type EndpointConfig struct {
-	Server string `mapstructure:"address"`
-}
-
-type Config struct {
-	Endpoint  EndpointConfig `mapstructure:"endpoint"`
-	Server ServerConfig   `mapstructure:"server"`
-}
-
-
 func main() {
-	v := viper.New()
-	v.SetConfigName("config")
-	v.AddConfigPath(".")
-	if err := v.ReadInConfig(); err != nil {
-		fmt.Printf("couldn't load config: %s", err)
-		os.Exit(1)
-	}
-	var c Config
-	if err := v.Unmarshal(&c); err != nil {
-		fmt.Printf("couldn't read config: %s", err)
-	}
-
-
 	router := gin.Default()
+	configuration, err := config.New()
+	if err != nil {
+		log.Panicln("Configuration error", err)
+	}
 
 	v1 := router.Group("/api/v1/")
 	{
@@ -52,5 +27,6 @@ func main() {
 
 
 
-	router.Run(c.Server.Listen)
+	router.Run(configuration.Server.Listen)
 }
+
