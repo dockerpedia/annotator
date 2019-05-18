@@ -19,9 +19,7 @@ type responseFuseki struct {
 	quadCount int	 `json:"quadCount,omitempty"`
 }
 */
-const (
-	siteHost string = "http://localhost:3030/v3/data"
-)
+var	siteHost string
 
 func convertImageName(image SoftwareImage) string {
 	imageName := strings.Replace(image.Name, "/", "-", -1)
@@ -273,7 +271,8 @@ func preBuildContext() (*tstore.Context, error) {
 	return context, err
 }
 
-func AnnotateFuseki(softwareImage SoftwareImage) bytes.Buffer {
+func AnnotateFuseki(softwareImage SoftwareImage, endpointAddr string) bytes.Buffer {
+	siteHost = endpointAddr
 	var buffer bytes.Buffer
 	var triples []tstore.Triple
 	context, err := preBuildContext()

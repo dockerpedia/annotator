@@ -218,7 +218,7 @@ func NewRepository(c *gin.Context) {
 		/*
 		Annotate using RDF store and build the image
 		 */
-		AnnotateFuseki(newImage)
+		AnnotateFuseki(newImage, configuration.Endpoint.Address)
 
 		c.JSON(http.StatusOK, gin.H{
 		})
