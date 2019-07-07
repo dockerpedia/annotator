@@ -40,6 +40,9 @@ func sendToFuseki(buffer bytes.Buffer) {
 		log.Println(err)
 	}
 
+	if resp.StatusCode >= 299 {
+		log.Printf("insert failed: \n %s \n", buffer.String())
+	}
 	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
@@ -261,6 +264,8 @@ func preBuildContext() (*tstore.Context, error) {
 		"SoftwareVulnerability:resource/SoftwareVulnerability/",
 		"SoftwareRevision:resource/SoftwareRevision",
 		"DeploymentPlan:resource/DeploymentPlan",
+		"wicus-stack:http://purl.org/net/wicus-stack#",
+
 	}
 	context, err := buildContext(prefixes, base)
 	if err != nil {
@@ -297,10 +302,10 @@ func AnnotateFuseki(softwareImage SoftwareImage, endpointAddr string) (string, e
 		encodeSoftwarePackage(*feature, context)
 
 		//vulnerabilities
-		for _, vulnerability := range feature.Vulnerabilities {
+		/*for _, vulnerability := range feature.Vulnerabilities {
 			triplesVulnerabilities(vulnerability, *feature, &triples)
 			encodeVulnerability(vulnerability, context)
-		}
+		}*/
 
 	}
 
