@@ -85,7 +85,7 @@ func tripleLayers(layers []docker.FsLayer, imageName string, triples *[]tstore.T
 		imageURI := fmt.Sprintf("SoftwareImage:%s", imageName)
 
 		*triples = append(*triples,
-			tstore.SubjPred(layerURI, "rdfs:type").Resource("vocab:ImageLayer"),
+			tstore.SubjPred(layerURI, "rdf:type").Resource("vocab:ImageLayer"),
 			tstore.SubjPred(layerURI, "vocab:isLayerOf").Resource(imageURI),
 			tstore.SubjPred(imageURI, "vocab:composedBy").Resource(layerURI),
 		)
